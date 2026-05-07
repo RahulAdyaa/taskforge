@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import KanbanBoard from '../components/KanbanBoard';
@@ -9,6 +9,9 @@ import ChatWidget from '../components/ChatWidget';
 import { useAuthStore } from '../store/authStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { io } from 'socket.io-client';
+import NotificationBell from '../components/NotificationBell';
+import TaskFilters, { applyFilters } from '../components/TaskFilters';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function ProjectView() {
   const { id } = useParams();
@@ -18,6 +21,7 @@ export default function ProjectView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
 
   useEffect(() => {
     const socket = io(import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/' : 'http://localhost:3001'), {
@@ -43,6 +47,12 @@ export default function ProjectView() {
       queryClient.invalidateQueries({ queryKey: ['tasks', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
       queryClient.invalidateQueries({ queryKey: ['logs', id] });
+    });
+
+    socket.on('comment_added', (data) => {
+      if (data?.taskId) {
+        queryClient.invalidateQueries({ queryKey: ['comments', data.taskId] });
+      }
     });
 
     return () => {
@@ -85,8 +95,32 @@ export default function ProjectView() {
     }
   });
 
+  const { data: labels } = useQuery({
+    queryKey: ['labels', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/projects/${id}/labels`);
+      return data;
+    }
+  });
+
   const userRole = project?.members?.find(m => m.user.id === user?.id)?.role;
   const isAdmin = userRole === 'ADMIN';
+
+  const [inviteToken, setInviteToken] = useState(null);
+  
+  const generateInviteMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/projects/${id}/invite`);
+      return data;
+    },
+    onSuccess: (data) => {
+      setInviteToken(data.inviteToken);
+      const inviteUrl = `${window.location.origin}/app/dashboard?join=${data.inviteToken}`;
+      navigator.clipboard.writeText(inviteUrl);
+      toast.success('Invite link copied to clipboard!');
+    },
+    onError: () => toast.error('Failed to generate invite link')
+  });
 
   const COLORS = ['#E8E4DD', '#111111', '#E63B2E'];
   const pieData = dashboardData ? [
@@ -142,11 +176,26 @@ export default function ProjectView() {
           </div>
           
           {isAdmin && (
-             <Link to={`/app/projects/${id}/settings`} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-black/60 hover:text-black hover:bg-[#F5F3EE] rounded-xl transition-all border border-[#E8E4DD]">
-               <SettingsIcon className="w-4 h-4" />
-               <span>Settings</span>
-             </Link>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => generateInviteMutation.mutate()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-black/60 hover:text-black hover:bg-[#F5F3EE] rounded-xl transition-all border border-[#E8E4DD]"
+                title="Copy Invite Link"
+              >
+                <LinkIcon className="w-4 h-4" />
+                <span>Invite</span>
+              </button>
+              <Link to={`/app/projects/${id}/settings`} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-black/60 hover:text-black hover:bg-[#F5F3EE] rounded-xl transition-all border border-[#E8E4DD]">
+                <SettingsIcon className="w-4 h-4" />
+                <span>Settings</span>
+              </Link>
+            </div>
           )}
+
+          <div className="flex items-center">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
 
           {isAdmin && (
             <div className="flex gap-2">
@@ -170,9 +219,19 @@ export default function ProjectView() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative flex flex-col">
         {activeTab === 'kanban' && (
-          <KanbanBoard projectId={id} tasks={tasks || []} isAdmin={isAdmin} members={project?.members || []} />
+          <>
+            <TaskFilters
+              members={project?.members || []}
+              labels={labels || []}
+              filters={filters}
+              onFilterChange={setFilters}
+            />
+            <div className="flex-1 overflow-hidden">
+              <KanbanBoard projectId={id} tasks={applyFilters(tasks, filters)} isAdmin={isAdmin} members={project?.members || []} labels={labels || []} />
+            </div>
+          </>
         )}
         {activeTab === 'terminal' && (
           <div className="h-full bg-[#111111] text-[#E8E4DD] p-8 overflow-y-auto font-mono text-sm shadow-inner relative">
@@ -257,6 +316,7 @@ export default function ProjectView() {
         <CreateTaskModal 
           projectId={id} 
           members={project?.members || []} 
+          labels={labels || []}
           onClose={() => setShowCreateModal(false)} 
         />
       )}
@@ -264,6 +324,8 @@ export default function ProjectView() {
       {showAIModal && (
         <AITaskModal 
           projectId={id}
+          members={project?.members || []}
+          labels={labels || []}
           onClose={() => setShowAIModal(false)}
         />
       )}
@@ -282,84 +344,280 @@ function StatCard({ title, value, isAlert }) {
   );
 }
 
-function AITaskModal({ projectId, onClose }) {
+function AITaskModal({ projectId, members, labels, onClose }) {
   const queryClient = useQueryClient();
   const [prompt, setPrompt] = useState('');
-  
-  const aiMutation = useMutation({
+  const [step, setStep] = useState('input'); // 'input' | 'review'
+  const [generatedTasks, setGeneratedTasks] = useState([]);
+
+  // Step 1: Preview — get AI suggestions without creating
+  const previewMutation = useMutation({
+    mutationFn: async (data) => {
+      const res = await api.post(`/projects/${projectId}/tasks/ai-preview`, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      const tasksWithMeta = data.tasks.map((t, i) => ({
+        ...t,
+        _id: i,
+        _enabled: true,
+        assigneeId: '',
+        dueDate: '',
+      }));
+      setGeneratedTasks(tasksWithMeta);
+      setStep('review');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'AI Preview failed');
+    }
+  });
+
+  // Step 2: Execute — create the reviewed tasks
+  const executeMutation = useMutation({
     mutationFn: async (data) => {
       const res = await api.post(`/projects/${projectId}/tasks/ai-generate`, data);
       return res.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries(['tasks', projectId]);
-      toast.success(`AI Generated ${data.tasks.length} tasks.`);
+      toast.success(`🚀 Deployed ${data.tasks.length} tasks!`);
       onClose();
     },
     onError: (err) => {
-      toast.error(err.response?.data?.error || 'AI Generation failed');
+      toast.error(err.response?.data?.error || 'Task creation failed');
     }
   });
 
-  const handleSubmit = (e) => {
+  const handlePreview = (e) => {
     e.preventDefault();
     if (!prompt.trim()) return;
-    aiMutation.mutate({ prompt });
+    previewMutation.mutate({ prompt });
+  };
+
+  const handleExecute = () => {
+    const enabledTasks = generatedTasks
+      .filter(t => t._enabled)
+      .map(t => ({
+        title: t.title,
+        priority: t.priority,
+        assigneeId: t.assigneeId || null,
+        dueDate: t.dueDate || null,
+      }));
+    
+    if (enabledTasks.length === 0) {
+      toast.error('Select at least one task to deploy.');
+      return;
+    }
+
+    executeMutation.mutate({ prompt, tasks: enabledTasks });
+  };
+
+  const updateTask = (id, field, value) => {
+    setGeneratedTasks(prev => prev.map(t => t._id === id ? { ...t, [field]: value } : t));
+  };
+
+  const toggleTask = (id) => {
+    setGeneratedTasks(prev => prev.map(t => t._id === id ? { ...t, _enabled: !t._enabled } : t));
+  };
+
+  const enabledCount = generatedTasks.filter(t => t._enabled).length;
+
+  const priorityColors = {
+    LOW: 'bg-blue-100 text-blue-700 border-blue-200',
+    MEDIUM: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    HIGH: 'bg-orange-100 text-orange-700 border-orange-200',
+    URGENT: 'bg-red-100 text-red-700 border-red-200',
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl bg-[#111111] text-[#E8E4DD] rounded-3xl shadow-2xl p-8 border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out]">
-        <div className="flex justify-between items-center mb-6">
+      <div className={`bg-[#111111] text-[#E8E4DD] rounded-3xl shadow-2xl border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out] overflow-hidden flex flex-col ${step === 'review' ? 'w-full max-w-4xl max-h-[85vh]' : 'w-full max-w-xl'}`}>
+        
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-[#E8E4DD]/10 shrink-0 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-[#E63B2E] font-bold bg-[#E63B2E]/10 px-2 py-1 rounded">AI ENGINE</span>
-            <h2 className="font-display italic text-2xl">Task Decomposition</h2>
+            <h2 className="font-display italic text-2xl">{step === 'input' ? 'Task Decomposition' : 'Review & Configure'}</h2>
           </div>
-          <button onClick={onClose} className="text-[#E8E4DD]/50 hover:text-white">✕</button>
+          <div className="flex items-center gap-3">
+            {step === 'review' && (
+              <button 
+                onClick={() => setStep('input')} 
+                className="font-mono text-xs text-[#E8E4DD]/50 hover:text-white transition-colors"
+              >
+                ← Back
+              </button>
+            )}
+            <button onClick={onClose} className="text-[#E8E4DD]/50 hover:text-white">✕</button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block font-mono text-sm mb-2 text-[#E8E4DD]/70">Master Objective</label>
-            <textarea 
-              autoFocus
-              value={prompt} 
-              onChange={e => setPrompt(e.target.value)} 
-              placeholder="e.g. Build the authentication system with Google Login..."
-              className="w-full bg-black border border-[#E8E4DD]/20 p-4 rounded-xl focus:border-[#E63B2E] outline-none h-32 resize-none font-mono text-sm" 
-            />
-          </div>
-          
-          <div className="pt-4 flex justify-end gap-4">
-            <button type="button" onClick={onClose} className="px-6 py-3 font-mono text-sm text-[#E8E4DD]/50 hover:text-white transition-colors">
-              Abort
-            </button>
-            <button 
-              type="submit" 
-              disabled={aiMutation.isPending || !prompt.trim()}
-              className="bg-[#E63B2E] text-white px-8 py-3 rounded-xl font-medium font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 transition-colors flex items-center gap-2"
-            >
-              {aiMutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Analyzing...
-                </>
-              ) : 'Execute Breakdown'}
-            </button>
-          </div>
-        </form>
+        {/* Step 1: Prompt Input */}
+        {step === 'input' && (
+          <form onSubmit={handlePreview} className="p-8 space-y-6">
+            <div>
+              <label className="block font-mono text-sm mb-2 text-[#E8E4DD]/70">Master Objective</label>
+              <textarea 
+                autoFocus
+                value={prompt} 
+                onChange={e => setPrompt(e.target.value)} 
+                placeholder="e.g. Build the authentication system with Google Login..."
+                className="w-full bg-black border border-[#E8E4DD]/20 p-4 rounded-xl focus:border-[#E63B2E] outline-none h-32 resize-none font-mono text-sm" 
+              />
+            </div>
+            <p className="font-mono text-[10px] text-[#E8E4DD]/30">
+              The AI will generate tasks, then you can assign teammates, set due dates, and adjust priorities before deploying.
+            </p>
+            <div className="pt-4 flex justify-end gap-4">
+              <button type="button" onClick={onClose} className="px-6 py-3 font-mono text-sm text-[#E8E4DD]/50 hover:text-white transition-colors">
+                Abort
+              </button>
+              <button 
+                type="submit" 
+                disabled={previewMutation.isPending || !prompt.trim()}
+                className="bg-[#E63B2E] text-white px-8 py-3 rounded-xl font-medium font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 transition-colors flex items-center gap-2"
+              >
+                {previewMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Analyzing...
+                  </>
+                ) : 'Analyze →'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Step 2: Review & Configure */}
+        {step === 'review' && (
+          <>
+            {/* Prompt reminder */}
+            <div className="px-8 py-3 bg-[#1A1A1A] border-b border-[#E8E4DD]/10 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-[#E8E4DD]/40 uppercase tracking-widest">Objective:</span>
+                <span className="font-mono text-xs text-[#E8E4DD]/70 truncate">{prompt}</span>
+              </div>
+            </div>
+
+            {/* Task List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {generatedTasks.map((task) => (
+                <div 
+                  key={task._id} 
+                  className={`rounded-2xl border transition-all ${task._enabled ? 'bg-[#1A1A1A] border-[#E8E4DD]/20' : 'bg-[#0D0D0D] border-[#E8E4DD]/5 opacity-40'}`}
+                >
+                  {/* Task Title Row */}
+                  <div className="flex items-center gap-4 px-5 py-4">
+                    <button
+                      onClick={() => toggleTask(task._id)}
+                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${task._enabled ? 'bg-[#E63B2E] border-[#E63B2E] text-white' : 'border-[#E8E4DD]/30 hover:border-[#E8E4DD]/60'}`}
+                    >
+                      {task._enabled && <span className="text-xs">✓</span>}
+                    </button>
+                    
+                    <input
+                      type="text"
+                      value={task.title}
+                      onChange={(e) => updateTask(task._id, 'title', e.target.value)}
+                      disabled={!task._enabled}
+                      className="flex-1 bg-transparent border-none outline-none font-sans text-sm text-[#E8E4DD] disabled:text-[#E8E4DD]/30 placeholder-[#E8E4DD]/20"
+                    />
+
+                    <span className={`font-mono text-[10px] px-2 py-1 rounded border shrink-0 ${priorityColors[task.priority]}`}>
+                      {task.priority}
+                    </span>
+                  </div>
+
+                  {/* Config Row — only shown if enabled */}
+                  {task._enabled && (
+                    <div className="px-5 pb-4 pt-0 flex items-center gap-3 flex-wrap">
+                      {/* Priority */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[9px] text-[#E8E4DD]/30 uppercase tracking-widest">Priority</span>
+                        <select
+                          value={task.priority}
+                          onChange={(e) => updateTask(task._id, 'priority', e.target.value)}
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E]"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High</option>
+                          <option value="URGENT">Urgent</option>
+                        </select>
+                      </div>
+
+                      {/* Assignee */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[9px] text-[#E8E4DD]/30 uppercase tracking-widest">Assign</span>
+                        <select
+                          value={task.assigneeId}
+                          onChange={(e) => updateTask(task._id, 'assigneeId', e.target.value)}
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E]"
+                        >
+                          <option value="">Unassigned</option>
+                          {members.map(m => (
+                            <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Due Date */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[9px] text-[#E8E4DD]/30 uppercase tracking-widest">Due</span>
+                        <input
+                          type="date"
+                          value={task.dueDate}
+                          onChange={(e) => updateTask(task._id, 'dueDate', e.target.value)}
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-8 py-5 border-t border-[#E8E4DD]/10 shrink-0 flex items-center justify-between bg-[#0D0D0D]">
+              <span className="font-mono text-xs text-[#E8E4DD]/40">
+                {enabledCount} of {generatedTasks.length} tasks selected
+              </span>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setStep('input'); setGeneratedTasks([]); }}
+                  className="px-5 py-2.5 font-mono text-xs text-[#E8E4DD]/50 hover:text-white border border-[#E8E4DD]/10 rounded-xl transition-colors"
+                >
+                  Regenerate
+                </button>
+                <button
+                  onClick={handleExecute}
+                  disabled={executeMutation.isPending || enabledCount === 0}
+                  className="bg-[#E63B2E] text-white px-8 py-2.5 rounded-xl font-medium font-mono text-sm disabled:opacity-50 hover:bg-red-600 transition-colors flex items-center gap-2"
+                >
+                  {executeMutation.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Deploying...
+                    </>
+                  ) : `Deploy ${enabledCount} Tasks`}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function CreateTaskModal({ projectId, members, onClose }) {
+function CreateTaskModal({ projectId, members, labels, onClose }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
   const [assigneeId, setAssigneeId] = useState('');
+  const [selectedLabels, setSelectedLabels] = useState([]);
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -382,7 +640,8 @@ function CreateTaskModal({ projectId, members, onClose }) {
       description,
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       priority,
-      assigneeId: assigneeId || null
+      assigneeId: assigneeId || null,
+      labelIds: selectedLabels
     });
   };
 
@@ -426,6 +685,28 @@ function CreateTaskModal({ projectId, members, onClose }) {
                 <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block font-mono text-sm mb-2">Labels</label>
+            <div className="flex flex-wrap gap-2">
+              {labels.map(l => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLabels(prev => 
+                      prev.includes(l.id) ? prev.filter(id => id !== l.id) : [...prev, l.id]
+                    )
+                  }}
+                  className={`font-mono text-[10px] px-3 py-1.5 rounded-full tracking-widest uppercase transition-all ${selectedLabels.includes(l.id) ? 'ring-2 ring-black' : 'opacity-70 hover:opacity-100'}`}
+                  style={{ backgroundColor: l.color, color: '#000' }}
+                >
+                  {l.name}
+                </button>
+              ))}
+              {labels.length === 0 && <span className="font-mono text-xs text-black/40">No labels in this project.</span>}
+            </div>
           </div>
           
           <div className="pt-4 mt-auto">

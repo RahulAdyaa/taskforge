@@ -9,6 +9,9 @@ const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects');
 const taskRoutes = require('./routes/tasks');
 const dashboardRoutes = require('./routes/dashboard');
+const myTasksRoutes = require('./routes/my-tasks');
+const notificationsRoutes = require('./routes/notifications');
+const standupRoutes = require('./routes/standup');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,6 +49,10 @@ app.use((req, res, next) => {
 });
 
 io.on('connection', (socket) => {
+  socket.on('register_user', (userId) => {
+    socket.join(`user_${userId}`);
+  });
+
   socket.on('join_project', (projectId) => {
     socket.join(`project_${projectId}`);
   });
@@ -59,6 +66,9 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/my-tasks', myTasksRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/standup', standupRoutes);
 
 // Tasks and dashboard routes are nested under projects in the requirements
 projectRoutes.use('/:projectId/tasks', taskRoutes);

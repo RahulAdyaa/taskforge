@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -14,11 +14,13 @@ model User {
   password      String?
   googleId      String?         @unique
   createdAt     DateTime        @default(now())
-  memberships   ProjectMember[]
-  assignedTasks Task[]          @relation("AssignedTo")
-  createdTasks  Task[]          @relation("CreatedBy")
   auditLogs     AuditLog[]
   comments      Comment[]
+  notifications Notification[]
+  memberships   ProjectMember[]
+  createdTasks  Task[]          @relation("CreatedBy")
+  assignedTasks Task[]          @relation("AssignedTo")
+  timeEntries   TimeEntry[]
 }
 
 model Project {
@@ -26,64 +28,103 @@ model Project {
   name        String
   description String?
   createdAt   DateTime        @default(now())
+  inviteToken String?         @unique
+  auditLogs   AuditLog[]
+  labels      Label[]
   members     ProjectMember[]
   tasks       Task[]
-  auditLogs   AuditLog[]
 }
 
 model ProjectMember {
   id        String  @id @default(cuid())
-  role      String  @default("MEMBER") // ADMIN, MEMBER
+  role      String  @default("MEMBER")
   userId    String
   projectId String
-  user      User    @relation(fields: [userId], references: [id])
   project   Project @relation(fields: [projectId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+
   @@unique([userId, projectId])
 }
 
 model Task {
-  id          String    @id @default(cuid())
+  id          String      @id @default(cuid())
   title       String
   description String?
   dueDate     DateTime?
-  priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
-  status      String    @default("TODO") // TODO, IN_PROGRESS, DONE
+  priority    String      @default("MEDIUM")
+  status      String      @default("TODO")
   projectId   String
   assigneeId  String?
   creatorId   String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  project     Project   @relation(fields: [projectId], references: [id])
-  assignee    User?     @relation("AssignedTo", fields: [assigneeId], references: [id])
-  creator     User      @relation("CreatedBy", fields: [creatorId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  auditLogs   AuditLog[]
   comments    Comment[]
-  
-  blockedBy   Task[]    @relation("TaskDependencies")
-  blocks      Task[]    @relation("TaskDependencies")
+  creator     User        @relation("CreatedBy", fields: [creatorId], references: [id])
+  assignee    User?       @relation("AssignedTo", fields: [assigneeId], references: [id])
+  project     Project     @relation(fields: [projectId], references: [id])
+  timeEntries TimeEntry[]
+  labels      Label[]     @relation("LabelToTask")
+  Task_A      Task[]      @relation("TaskDependencies")
+  Task_B      Task[]      @relation("TaskDependencies")
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  isMarkdown Boolean @default(true)
-  taskId    String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  content    String
+  isMarkdown Boolean  @default(true)
+  taskId     String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  action      String   // e.g., "TASK_CREATED", "TASK_UPDATED", "TASK_DELETED"
-  details     String?  // JSON stringified details
-  projectId   String
-  userId      String
-  taskId      String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  projectId String
+  userId    String
+  taskId    String?
+  createdAt DateTime @default(now())
+  task      Task?    @relation(fields: [taskId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
 
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id])
+model Label {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#E8E4DD")
+  projectId String
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]   @relation("LabelToTask")
+
+  @@unique([name, projectId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TimeEntry {
+  id          String    @id @default(cuid())
+  taskId      String
+  userId      String
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }

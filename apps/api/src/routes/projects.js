@@ -1,12 +1,11 @@
 const express = require('express');
 const { z } = require('zod');
-const { Ollama } = require('ollama');
+const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const authenticate = require('../middleware/authenticate');
 const requireProjectRole = require('../middleware/requireProjectRole');
 const validate = require('../middleware/validate');
 
-const ollama = new Ollama({ host: 'http://localhost:11434' });
 const router = express.Router();
 
 router.use(authenticate);
@@ -74,7 +73,7 @@ router.post('/join', validate(joinProjectSchema), async (req, res, next) => {
     // Check if already a member
     const existingMember = await prisma.projectMember.findUnique({
       where: {
-        projectId_userId: {
+        userId_projectId: {
           projectId,
           userId: req.user.id
         }
@@ -99,6 +98,41 @@ router.post('/join', validate(joinProjectSchema), async (req, res, next) => {
   }
 });
 
+router.post('/join-invite/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const project = await prisma.project.findUnique({ where: { inviteToken: token } });
+    if (!project) {
+      return res.status(404).json({ error: 'Invalid or expired invite token.' });
+    }
+
+    const existingMember = await prisma.projectMember.findUnique({
+      where: {
+        userId_projectId: {
+          projectId: project.id,
+          userId: req.user.id
+        }
+      }
+    });
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'You are already a member of this project.' });
+    }
+
+    const membership = await prisma.projectMember.create({
+      data: {
+        userId: req.user.id,
+        projectId: project.id,
+        role: 'MEMBER'
+      }
+    });
+
+    res.status(201).json({ project, membership });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
   try {
     const project = await prisma.project.findUnique({
@@ -114,6 +148,26 @@ router.get('/:id', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, nex
       },
     });
     res.json(project);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/invite', requireProjectRole(['ADMIN']), async (req, res, next) => {
+  try {
+    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    let inviteToken = project.inviteToken;
+    if (!inviteToken) {
+      inviteToken = crypto.randomBytes(16).toString('hex');
+      await prisma.project.update({
+        where: { id: req.params.id },
+        data: { inviteToken }
+      });
+    }
+    
+    res.json({ inviteToken });
   } catch (error) {
     next(error);
   }
@@ -229,6 +283,55 @@ router.get('/:id/logs', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res
   }
 });
 
+const createLabelSchema = z.object({
+  name: z.string().min(1).max(30),
+  color: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/).default('#E8E4DD'),
+});
+
+router.get('/:id/labels', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
+  try {
+    const labels = await prisma.label.findMany({
+      where: { projectId: req.params.id },
+      orderBy: { name: 'asc' },
+    });
+    res.json(labels);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/labels', requireProjectRole(['ADMIN']), validate(createLabelSchema), async (req, res, next) => {
+  try {
+    const { name, color } = req.body;
+    
+    // Check if label with name already exists in this project
+    const existing = await prisma.label.findUnique({
+      where: {
+        name_projectId: {
+          name,
+          projectId: req.params.id
+        }
+      }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Label with this name already exists' });
+    }
+
+    const label = await prisma.label.create({
+      data: {
+        name,
+        color,
+        projectId: req.params.id,
+      }
+    });
+    
+    res.status(201).json(label);
+  } catch (error) {
+    next(error);
+  }
+});
+
 const chatSchema = z.object({
   message: z.string().min(1).max(1000),
 });
@@ -253,15 +356,34 @@ Here is the current project status context:
 ${summary}
 Answer the user's question concisely and helpfully.`;
 
-    const response = await ollama.chat({
-      model: 'llama3:latest',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ]
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterApiKey) {
+      return res.status(500).json({ error: 'AI features are not configured.' });
+    }
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ]
+      })
     });
 
-    res.json({ reply: response.message.content });
+    if (!response.ok) {
+      throw new Error('Failed to generate response from OpenRouter');
+    }
+
+    const data = await response.json();
+    const reply = data.choices[0].message.content;
+
+    res.json({ reply });
   } catch (error) {
     next(error);
   }

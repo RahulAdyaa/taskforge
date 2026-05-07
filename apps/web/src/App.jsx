@@ -7,10 +7,13 @@ import Dashboard from './pages/Dashboard';
 import ProjectView from './pages/ProjectView';
 import Settings from './pages/Settings';
 import AccountSettings from './pages/AccountSettings';
+import MyTasks from './pages/MyTasks';
 import { useAuthStore } from './store/authStore';
 import api from './lib/axios';
 
 import CommandPalette from './components/CommandPalette';
+import GlobalSocket from './components/GlobalSocket';
+import { ThemeProvider } from './store/themeStore';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -45,20 +48,24 @@ function App() {
   }
 
   return (
-    <Router>
-      <CommandPalette />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        
-        <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/app/projects/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
-        <Route path="/app/projects/:id/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/app/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
-      </Routes>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <GlobalSocket />
+        <CommandPalette />
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          
+          <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/app/my-tasks" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
+          <Route path="/app/projects/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
+          <Route path="/app/projects/:id/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/app/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 

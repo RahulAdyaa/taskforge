@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, LayoutGrid, LogOut, ArrowRightToLine, Settings as SettingsIcon } from 'lucide-react';
+import { Plus, LayoutGrid, LogOut, ArrowRightToLine, Settings as SettingsIcon, CheckCircle2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
+import NotificationBell from '../components/NotificationBell';
+import StandupModal from '../components/StandupModal';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Dashboard() {
   const user = useAuthStore(state => state.user);
@@ -12,6 +15,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [showStandup, setShowStandup] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [joinProjectId, setJoinProjectId] = useState('');
 
@@ -51,6 +55,32 @@ export default function Dashboard() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to join project.')
   });
 
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const joinToken = searchParams.get('join');
+
+  const joinInviteMutation = useMutation({
+    mutationFn: async (token) => {
+      const { data } = await api.post(`/projects/join-invite/${token}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['projects']);
+      toast.success('Successfully joined via invite link.');
+      window.history.replaceState({}, '', '/app/dashboard');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to join via invite link.');
+      window.history.replaceState({}, '', '/app/dashboard');
+    }
+  });
+
+  React.useEffect(() => {
+    if (joinToken && !joinInviteMutation.isPending) {
+      joinInviteMutation.mutate(joinToken);
+    }
+  }, [joinToken]);
+
   const handleLogout = async () => {
     try {
       await api.post('/auth/logout');
@@ -69,10 +99,21 @@ export default function Dashboard() {
             <LayoutGrid className="w-5 h-5" />
             <span>All Projects</span>
           </div>
+          <Link to="/app/my-tasks" className="flex items-center gap-3 px-4 py-3 rounded-xl text-black/60 hover:text-black hover:bg-white/50 transition-all font-medium">
+            <CheckCircle2 className="w-5 h-5" />
+            <span>My Tasks</span>
+          </Link>
           <Link to="/app/settings" className="flex items-center gap-3 px-4 py-3 rounded-xl text-black/60 hover:text-black hover:bg-white/50 transition-all font-medium">
             <SettingsIcon className="w-5 h-5" />
             <span>Settings</span>
           </Link>
+          <button 
+            onClick={() => setShowStandup(true)}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-black/60 hover:text-black hover:bg-white/50 transition-all font-medium w-full text-left"
+          >
+            <Sparkles className="w-5 h-5" />
+            <span>AI Standup</span>
+          </button>
         </div>
 
         <div className="mt-auto border-t border-[#E8E4DD] pt-6">
@@ -92,7 +133,9 @@ export default function Dashboard() {
             <h1 className="font-display italic text-5xl mb-2">Projects</h1>
             <p className="font-mono text-sm text-black/50">Active Operational Zones</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
+            <ThemeToggle />
+            <NotificationBell />
             <button 
               onClick={() => { setIsJoining(true); setIsCreating(false); }}
               className="btn-brutal bg-white border border-[#E8E4DD] text-black px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:border-black transition-colors"
@@ -192,6 +235,8 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {showStandup && <StandupModal onClose={() => setShowStandup(false)} />}
     </div>
   );
 }
