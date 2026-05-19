@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy } from 'lucide-react';
@@ -8,10 +8,12 @@ import KanbanBoard from '../components/KanbanBoard';
 import ChatWidget from '../components/ChatWidget';
 import { useAuthStore } from '../store/authStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { io } from 'socket.io-client';
 import NotificationBell from '../components/NotificationBell';
 import TaskFilters, { applyFilters } from '../components/TaskFilters';
 import ThemeToggle from '../components/ThemeToggle';
+
+// Check if WebSocket is available
+const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
 
 export default function ProjectView() {
   const { id } = useParams();
@@ -22,42 +24,50 @@ export default function ProjectView() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/' : 'http://localhost:3001'), {
-      withCredentials: true,
-    });
+    if (WS_URL) {
+      // Use WebSocket when available (local dev)
+      import('socket.io-client').then(({ io }) => {
+        const socket = io(WS_URL, { withCredentials: true });
+        socketRef.current = socket;
 
-    socket.on('connect', () => {
-      setIsConnected(true);
-      socket.emit('join_project', id);
-    });
+        socket.on('connect', () => {
+          setIsConnected(true);
+          socket.emit('join_project', id);
+        });
 
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+        socket.on('disconnect', () => {
+          setIsConnected(false);
+        });
 
-    socket.on('task_created', () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
-      queryClient.invalidateQueries({ queryKey: ['logs', id] });
-    });
+        socket.on('task_created', () => {
+          queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+          queryClient.invalidateQueries({ queryKey: ['logs', id] });
+        });
 
-    socket.on('task_updated', () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
-      queryClient.invalidateQueries({ queryKey: ['logs', id] });
-    });
+        socket.on('task_updated', () => {
+          queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
+          queryClient.invalidateQueries({ queryKey: ['logs', id] });
+        });
 
-    socket.on('comment_added', (data) => {
-      if (data?.taskId) {
-        queryClient.invalidateQueries({ queryKey: ['comments', data.taskId] });
-      }
-    });
+        socket.on('comment_added', (data) => {
+          if (data?.taskId) {
+            queryClient.invalidateQueries({ queryKey: ['comments', data.taskId] });
+          }
+        });
+      });
+    }
 
     return () => {
-      socket.emit('leave_project', id);
-      socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.emit('leave_project', id);
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, [id, queryClient]);
 
@@ -75,7 +85,8 @@ export default function ProjectView() {
       const { data } = await api.get(`/projects/${id}/dashboard`);
       return data;
     },
-    enabled: activeTab === 'dashboard'
+    enabled: activeTab === 'dashboard',
+    refetchInterval: WS_URL ? false : 15000, // Poll every 15s when no WebSocket
   });
 
   const { data: logsData } = useQuery({
@@ -92,7 +103,8 @@ export default function ProjectView() {
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}/tasks`);
       return data;
-    }
+    },
+    refetchInterval: WS_URL ? false : 5000, // Poll every 5s when no WebSocket
   });
 
   const { data: labels } = useQuery({
