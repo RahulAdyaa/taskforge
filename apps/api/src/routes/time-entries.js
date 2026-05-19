@@ -69,7 +69,7 @@ router.post('/start', async (req, res, next) => {
     obj.user = { id: populated.userId._id.toString(), name: populated.userId.name, email: populated.userId.email };
     obj.userId = populated.userId._id.toString();
 
-    req.io.to(`project_${projectId}`).emit('timer_started', {
+    req.emitEvent(`project_${projectId}`, 'timer_started', {
       taskId, userId: req.user.id, entryId: entry.id,
     });
 
@@ -101,7 +101,7 @@ router.post('/stop', async (req, res, next) => {
     obj.user = { id: updated.userId._id.toString(), name: updated.userId.name, email: updated.userId.email };
     obj.userId = updated.userId._id.toString();
 
-    req.io.to(`project_${projectId}`).emit('timer_stopped', {
+    req.emitEvent(`project_${projectId}`, 'timer_stopped', {
       taskId, userId: req.user.id, entryId: updated.id,
       duration: Math.floor((new Date(updated.endTime) - new Date(updated.startTime)) / 1000),
     });

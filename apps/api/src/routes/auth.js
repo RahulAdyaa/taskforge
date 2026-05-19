@@ -43,8 +43,9 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
     });
 
     res.status(201).json({ accessToken, user: { id: user.id, name: user.name, email: user.email } });
@@ -72,8 +73,9 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
 
     res.json({ accessToken, user: { id: user.id, name: user.name, email: user.email } });
@@ -144,8 +146,9 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
 
     res.json({ accessToken, user: { id: user.id, name: user.name, email: user.email } });

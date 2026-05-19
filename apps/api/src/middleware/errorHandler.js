@@ -5,7 +5,7 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ error: 'Validation Error', details: err.errors || err.issues });
   }
 
-  // Mongoose duplicate key error (replaces Prisma P2002)
+  // Mongoose duplicate key error
   if (err.name === 'MongoServerError' && err.code === 11000) {
     const field = Object.keys(err.keyPattern || {}).join(', ');
     return res.status(409).json({ error: `Conflict: Duplicate value for ${field}` });
@@ -20,6 +20,12 @@ const errorHandler = (err, req, res, next) => {
   // Mongoose cast error (invalid ObjectId)
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
     return res.status(404).json({ error: 'Not Found: Invalid ID format' });
+  }
+
+  // MongoDB network error (connection drop)
+  if (err.name === 'MongoNetworkError' || err.name === 'MongooseServerSelectionError') {
+    console.error('Database connection error:', err.message);
+    return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   }
 
   console.error(err);

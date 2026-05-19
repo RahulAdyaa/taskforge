@@ -166,7 +166,7 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
       obj.assigneeId = populated.assigneeId?._id?.toString() || populated.assigneeId?.toString() || null;
       createdTasks.push(obj);
 
-      req.io.to(`project_${projectId}`).emit('task_created', obj);
+      req.emitEvent(`project_${projectId}`, 'task_created', obj);
 
       await AuditLog.create({
         action: 'TASK_CREATED_BY_AI',
@@ -180,7 +180,7 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
             userId: taskData.assigneeId, type: 'TASK_ASSIGNED',
             message: `AI assigned you to "${task.title}"`, link: `/app/projects/${projectId}`,
           });
-          req.io.to(`user_${taskData.assigneeId}`).emit('new_notification', notification);
+          req.emitEvent(`user_${taskData.assigneeId}`, 'new_notification', notification);
         } catch (e) { console.error('Failed to send AI assignment notification:', e); }
       }
     }
@@ -204,14 +204,14 @@ router.post('/', requireProjectRole(['ADMIN']), validate(createTaskSchema), asyn
       ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
     obj.assigneeId = populated.assigneeId?._id?.toString() || populated.assigneeId?.toString() || null;
 
-    req.io.to(`project_${projectId}`).emit('task_created', obj);
+    req.emitEvent(`project_${projectId}`, 'task_created', obj);
 
     if (task.assigneeId && task.assigneeId.toString() !== req.user.id) {
       const notification = await Notification.create({
         userId: task.assigneeId, type: 'TASK_ASSIGNED',
         message: `You were assigned a new task: ${task.title}`, link: `/app/projects/${projectId}`,
       });
-      req.io.to(`user_${task.assigneeId}`).emit('notification', notification);
+      req.emitEvent(`user_${task.assigneeId}`, 'notification', notification);
     }
 
     await AuditLog.create({
@@ -293,7 +293,7 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
       ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
     obj.assigneeId = updatedTask.assigneeId?._id?.toString() || updatedTask.assigneeId?.toString() || null;
 
-    req.io.to(`project_${req.params.projectId}`).emit('task_updated', obj);
+    req.emitEvent(`project_${req.params.projectId}`, 'task_updated', obj);
 
     // Notify creator if completed by someone else
     if (task.status !== 'DONE' && updatedTask.status === 'DONE' && updatedTask.creatorId.toString() !== req.user.id) {
@@ -301,7 +301,7 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
         userId: updatedTask.creatorId, type: 'TASK_COMPLETED',
         message: `Task completed: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}`,
       });
-      req.io.to(`user_${updatedTask.creatorId}`).emit('notification', notification);
+      req.emitEvent(`user_${updatedTask.creatorId}`, 'notification', notification);
     }
     // Notify assignee if reassigned
     if (updatedTask.assigneeId && updatedTask.assigneeId.toString() !== task.assigneeId?.toString() && updatedTask.assigneeId.toString() !== req.user.id) {
@@ -309,7 +309,7 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
         userId: updatedTask.assigneeId, type: 'TASK_ASSIGNED',
         message: `You were assigned a task: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}`,
       });
-      req.io.to(`user_${updatedTask.assigneeId}`).emit('notification', notification);
+      req.emitEvent(`user_${updatedTask.assigneeId}`, 'notification', notification);
     }
 
     await AuditLog.create({
@@ -341,7 +341,7 @@ router.post('/:taskId/blockers', requireProjectRole(['ADMIN']), async (req, res,
       { $addToSet: { blockedBy: blockerId } },
       { new: true }
     ).populate('blockedBy');
-    req.io.to(`project_${req.params.projectId}`).emit('task_updated', task);
+    req.emitEvent(`project_${req.params.projectId}`, 'task_updated', task);
     res.json(task);
   } catch (error) { next(error); }
 });
@@ -354,7 +354,7 @@ router.delete('/:taskId/blockers/:blockerId', requireProjectRole(['ADMIN']), asy
       { $pull: { blockedBy: req.params.blockerId } },
       { new: true }
     ).populate('blockedBy');
-    req.io.to(`project_${req.params.projectId}`).emit('task_updated', task);
+    req.emitEvent(`project_${req.params.projectId}`, 'task_updated', task);
     res.json(task);
   } catch (error) { next(error); }
 });
@@ -406,8 +406,8 @@ router.post('/:taskId/comments', validate(commentSchema), async (req, res, next)
     obj.user = { id: populated.userId._id.toString(), name: populated.userId.name, email: populated.userId.email };
     obj.userId = populated.userId._id.toString();
 
-    req.io.to(`project_${req.params.projectId}`).emit('task_updated', task);
-    req.io.to(`project_${req.params.projectId}`).emit('comment_added', { taskId: req.params.taskId, comment: obj });
+    req.emitEvent(`project_${req.params.projectId}`, 'task_updated', task);
+    req.emitEvent(`project_${req.params.projectId}`, 'comment_added', { taskId: req.params.taskId, comment: obj });
 
     await AuditLog.create({
       action: 'COMMENT_ADDED', details: JSON.stringify({ taskId: task.id }),
