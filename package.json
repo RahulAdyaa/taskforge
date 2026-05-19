@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\"",
     "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=apps/web",
+    "vercel-build": "npm run build:web",
     "start": "npm run start --workspace=apps/api"
   },
   "devDependencies": {
