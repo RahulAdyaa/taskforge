@@ -1,19 +1,16 @@
 const express = require('express');
-const prisma = require('../lib/prisma');
+const { Notification } = require('../models');
 const authenticate = require('../middleware/authenticate');
 
 const router = express.Router();
-
 router.use(authenticate);
 
 // Get all notifications for the authenticated user
 router.get('/', async (req, res, next) => {
   try {
-    const notifications = await prisma.notification.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
+    const notifications = await Notification.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(50);
     res.json(notifications);
   } catch (error) {
     next(error);
@@ -23,18 +20,17 @@ router.get('/', async (req, res, next) => {
 // Mark a notification as read
 router.patch('/:id/read', async (req, res, next) => {
   try {
-    const notification = await prisma.notification.findUnique({
-      where: { id: req.params.id },
-    });
+    const notification = await Notification.findById(req.params.id);
 
-    if (!notification || notification.userId !== req.user.id) {
+    if (!notification || notification.userId.toString() !== req.user.id) {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    const updated = await prisma.notification.update({
-      where: { id: req.params.id },
-      data: { read: true },
-    });
+    const updated = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { read: true },
+      { new: true }
+    );
     res.json(updated);
   } catch (error) {
     next(error);
@@ -44,10 +40,10 @@ router.patch('/:id/read', async (req, res, next) => {
 // Mark all notifications as read
 router.post('/read-all', async (req, res, next) => {
   try {
-    await prisma.notification.updateMany({
-      where: { userId: req.user.id, read: false },
-      data: { read: true },
-    });
+    await Notification.updateMany(
+      { userId: req.user.id, read: false },
+      { read: true }
+    );
     res.json({ success: true });
   } catch (error) {
     next(error);

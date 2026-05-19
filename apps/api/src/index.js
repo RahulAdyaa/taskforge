@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const connectDB = require('./lib/database');
 const errorHandler = require('./middleware/errorHandler');
 
 const authRoutes = require('./routes/auth');
@@ -91,6 +92,9 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use(errorHandler);
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Connect to MongoDB, then start server
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });

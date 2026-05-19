@@ -1,9 +1,8 @@
 const express = require('express');
-const prisma = require('../lib/prisma');
+const { AuditLog, Task } = require('../models');
 const authenticate = require('../middleware/authenticate');
 
 const router = express.Router();
-
 router.use(authenticate);
 
 // OpenRouter fallback chain (same models as task decomposition)
@@ -20,7 +19,7 @@ const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://taskforge-app-production-f996.up.railway.app',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
       'X-Title': 'TaskForge',
     },
     body: JSON.stringify({
@@ -33,13 +32,11 @@ const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
       max_tokens: 1500,
     }),
   });
-
   if (!response.ok) {
     const err = await response.text();
     console.error(`OpenRouter standup error (${model}, HTTP ${response.status}):`, err);
     throw new Error(`Model ${model} failed with HTTP ${response.status}`);
   }
-
   return response.json();
 };
 
@@ -50,99 +47,70 @@ router.post('/generate', async (req, res, next) => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // 1. Gather context: recently completed tasks (last 24h)
-    const recentLogs = await prisma.auditLog.findMany({
-      where: {
-        userId,
-        createdAt: { gte: yesterday },
-        action: { in: ['TASK_CREATED', 'TASK_UPDATED', 'TASK_CREATED_BY_AI', 'COMMENT_ADDED'] },
-      },
-      include: {
-        task: { select: { id: true, title: true, status: true, priority: true } },
-        project: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    });
+    // 1. Recent audit logs (last 24h)
+    const recentLogs = await AuditLog.find({
+      userId,
+      createdAt: { $gte: yesterday },
+      action: { $in: ['TASK_CREATED', 'TASK_UPDATED', 'TASK_CREATED_BY_AI', 'COMMENT_ADDED'] },
+    })
+      .populate('taskId', 'title status priority')
+      .populate('projectId', 'name')
+      .sort({ createdAt: -1 })
+      .limit(30);
 
-    // 2. Current open tasks assigned to the user
-    const openTasks = await prisma.task.findMany({
-      where: {
-        assigneeId: userId,
-        status: { in: ['TODO', 'IN_PROGRESS'] },
-      },
-      include: {
-        project: { select: { id: true, name: true } },
-        blockedBy: { select: { id: true, title: true, status: true } },
-      },
-      orderBy: [
-        { priority: 'desc' },
-        { dueDate: 'asc' },
-      ],
-      take: 15,
-    });
+    // 2. Current open tasks
+    const openTasks = await Task.find({
+      assigneeId: userId,
+      status: { $in: ['TODO', 'IN_PROGRESS'] },
+    })
+      .populate('projectId', 'name')
+      .populate('blockedBy', 'title status')
+      .sort({ priority: -1, dueDate: 1 })
+      .limit(15);
 
     // 3. Recently completed tasks
-    const completedTasks = await prisma.task.findMany({
-      where: {
-        assigneeId: userId,
-        status: 'DONE',
-        updatedAt: { gte: yesterday },
-      },
-      include: {
-        project: { select: { id: true, name: true } },
-      },
-      take: 10,
-    });
+    const completedTasks = await Task.find({
+      assigneeId: userId,
+      status: 'DONE',
+      updatedAt: { $gte: yesterday },
+    })
+      .populate('projectId', 'name')
+      .limit(10);
 
     // 4. Identify blockers
-    const blockedTasks = openTasks.filter(t => 
+    const blockedTasks = openTasks.filter(t =>
       t.blockedBy && t.blockedBy.some(b => b.status !== 'DONE')
     );
 
     // 5. Overdue tasks
     const overdueTasks = openTasks.filter(t => t.dueDate && new Date(t.dueDate) < now);
 
-    // Build the data context for the AI
     const contextData = {
       userName: req.user.name,
       date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
       completedYesterday: completedTasks.map(t => ({
-        title: t.title,
-        project: t.project.name,
-        priority: t.priority,
+        title: t.title, project: t.projectId?.name || 'Unknown', priority: t.priority,
       })),
       currentQueue: openTasks.map(t => ({
-        title: t.title,
-        status: t.status,
-        project: t.project.name,
-        priority: t.priority,
+        title: t.title, status: t.status, project: t.projectId?.name || 'Unknown', priority: t.priority,
         dueDate: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : null,
         isOverdue: t.dueDate ? new Date(t.dueDate) < now : false,
       })),
       blockers: blockedTasks.map(t => ({
-        title: t.title,
-        project: t.project.name,
+        title: t.title, project: t.projectId?.name || 'Unknown',
         blockedBy: t.blockedBy.filter(b => b.status !== 'DONE').map(b => b.title),
       })),
       recentActivity: recentLogs.slice(0, 10).map(l => ({
-        action: l.action,
-        project: l.project?.name,
-        task: l.task?.title,
+        action: l.action, project: l.projectId?.name, task: l.taskId?.title,
       })),
       stats: {
-        completedCount: completedTasks.length,
-        openCount: openTasks.length,
-        blockedCount: blockedTasks.length,
-        overdueCount: overdueTasks.length,
+        completedCount: completedTasks.length, openCount: openTasks.length,
+        blockedCount: blockedTasks.length, overdueCount: overdueTasks.length,
       },
     };
 
-    // Call AI
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
-    }
+    if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
 
     const systemPrompt = `You are a daily standup report generator for a project management tool called TaskForge. 
 Given a developer's task data, generate a concise, professional daily standup report.
@@ -176,55 +144,34 @@ Return ONLY the markdown report, nothing else.`;
         console.log(`[Standup] Trying model: ${model}`);
         const data = await callOpenRouterAPI(apiKey, model, systemPrompt, userPrompt);
         const text = data.choices?.[0]?.message?.content || '';
-
-        if (!text.trim()) {
-          lastError = new Error('Empty response from AI');
-          continue;
-        }
-
+        if (!text.trim()) { lastError = new Error('Empty response from AI'); continue; }
         console.log(`[Standup] Succeeded with model: ${model}`);
-        return res.json({
-          standup: text.trim(),
-          generatedAt: now.toISOString(),
-          model,
-          context: contextData.stats,
-        });
+        return res.json({ standup: text.trim(), generatedAt: now.toISOString(), model, context: contextData.stats });
       } catch (err) {
         console.error(`[Standup] Model ${model} failed:`, err.message);
         lastError = err;
-        continue;
       }
     }
 
-    // All models failed — return a basic template standup
-    const fallbackReport = generateFallbackReport(contextData);
+    // Fallback template
     return res.json({
-      standup: fallbackReport,
-      generatedAt: now.toISOString(),
-      model: 'fallback-template',
-      context: contextData.stats,
+      standup: generateFallbackReport(contextData),
+      generatedAt: now.toISOString(), model: 'fallback-template', context: contextData.stats,
     });
-
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 function generateFallbackReport(ctx) {
   const lines = [];
   lines.push(`## 🗓 Daily Standup — ${ctx.date}`);
   lines.push(`**${ctx.userName}**\n`);
-
   lines.push(`### ✅ What I completed`);
   if (ctx.completedYesterday.length === 0) {
     lines.push(`- No tasks completed in the last 24 hours.\n`);
   } else {
-    ctx.completedYesterday.forEach(t => {
-      lines.push(`- **${t.title}** (${t.project}) [${t.priority}]`);
-    });
+    ctx.completedYesterday.forEach(t => lines.push(`- **${t.title}** (${t.project}) [${t.priority}]`));
     lines.push('');
   }
-
   lines.push(`### 🔄 What I'm working on today`);
   if (ctx.currentQueue.length === 0) {
     lines.push(`- No open tasks in queue.\n`);
@@ -236,20 +183,15 @@ function generateFallbackReport(ctx) {
     });
     lines.push('');
   }
-
   lines.push(`### 🚧 Blockers & Risks`);
   if (ctx.blockers.length === 0) {
     lines.push(`- No blockers at this time.\n`);
   } else {
-    ctx.blockers.forEach(t => {
-      lines.push(`- **${t.title}** (${t.project}) — blocked by: ${t.blockedBy.join(', ')}`);
-    });
+    ctx.blockers.forEach(t => lines.push(`- **${t.title}** (${t.project}) — blocked by: ${t.blockedBy.join(', ')}`));
     lines.push('');
   }
-
   lines.push(`### 📊 Quick Stats`);
   lines.push(`- ${ctx.stats.completedCount} tasks completed | ${ctx.stats.openCount} tasks in queue | ${ctx.stats.blockedCount} blockers | ${ctx.stats.overdueCount} overdue`);
-
   return lines.join('\n');
 }
 

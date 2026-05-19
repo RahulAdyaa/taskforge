@@ -1,12 +1,9 @@
 const express = require('express');
-const { z } = require('zod');
-const prisma = require('../lib/prisma');
+const { Task, TimeEntry } = require('../models');
 const authenticate = require('../middleware/authenticate');
 const requireProjectRole = require('../middleware/requireProjectRole');
-const validate = require('../middleware/validate');
 
 const router = express.Router({ mergeParams: true });
-
 router.use(authenticate);
 router.use(requireProjectRole(['ADMIN', 'MEMBER']));
 
@@ -14,36 +11,29 @@ router.use(requireProjectRole(['ADMIN', 'MEMBER']));
 router.get('/', async (req, res, next) => {
   try {
     const { taskId, projectId } = req.params;
-    
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task || task.projectId !== projectId) {
+    const task = await Task.findById(taskId);
+    if (!task || task.projectId.toString() !== projectId) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    const entries = await prisma.timeEntry.findMany({
-      where: { taskId },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { startTime: 'desc' },
-    });
+    const entries = await TimeEntry.find({ taskId })
+      .populate('userId', 'name email')
+      .sort({ startTime: -1 });
 
-    // Calculate total tracked time in seconds
     let totalSeconds = 0;
-    entries.forEach(entry => {
-      if (entry.endTime) {
-        totalSeconds += Math.floor((new Date(entry.endTime) - new Date(entry.startTime)) / 1000);
+    const result = entries.map(e => {
+      if (e.endTime) {
+        totalSeconds += Math.floor((new Date(e.endTime) - new Date(e.startTime)) / 1000);
       }
+      const obj = e.toJSON();
+      obj.user = { id: e.userId._id.toString(), name: e.userId.name, email: e.userId.email };
+      obj.userId = e.userId._id.toString();
+      return obj;
     });
 
-    // Find active timer for current user
-    const activeEntry = entries.find(e => !e.endTime && e.userId === req.user.id);
+    const activeEntry = result.find(e => !e.endTime && e.userId === req.user.id) || null;
 
-    res.json({
-      entries,
-      totalSeconds,
-      activeEntry: activeEntry || null,
-    });
+    res.json({ entries: result, totalSeconds, activeEntry });
   } catch (error) {
     next(error);
   }
@@ -53,46 +43,37 @@ router.get('/', async (req, res, next) => {
 router.post('/start', async (req, res, next) => {
   try {
     const { taskId, projectId } = req.params;
-
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task || task.projectId !== projectId) {
+    const task = await Task.findById(taskId);
+    if (!task || task.projectId.toString() !== projectId) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
     // Check if user already has a running timer on ANY task in this project
-    const existingActive = await prisma.timeEntry.findFirst({
-      where: {
-        userId: req.user.id,
-        endTime: null,
-        task: { projectId },
-      },
-      include: { task: { select: { id: true, title: true } } },
-    });
+    const projectTaskIds = (await Task.find({ projectId }).select('_id')).map(t => t._id);
+    const existingActive = await TimeEntry.findOne({
+      userId: req.user.id,
+      endTime: null,
+      taskId: { $in: projectTaskIds },
+    }).populate('taskId', 'title');
 
     if (existingActive) {
       return res.status(400).json({
-        error: `You already have a running timer on "${existingActive.task.title}". Stop it first.`,
-        activeTaskId: existingActive.task.id,
+        error: `You already have a running timer on "${existingActive.taskId.title}". Stop it first.`,
+        activeTaskId: existingActive.taskId._id.toString(),
       });
     }
 
-    const entry = await prisma.timeEntry.create({
-      data: {
-        taskId,
-        userId: req.user.id,
-      },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const entry = await TimeEntry.create({ taskId, userId: req.user.id });
+    const populated = await TimeEntry.findById(entry.id).populate('userId', 'name email');
+    const obj = populated.toJSON();
+    obj.user = { id: populated.userId._id.toString(), name: populated.userId.name, email: populated.userId.email };
+    obj.userId = populated.userId._id.toString();
 
     req.io.to(`project_${projectId}`).emit('timer_started', {
-      taskId,
-      userId: req.user.id,
-      entryId: entry.id,
+      taskId, userId: req.user.id, entryId: entry.id,
     });
 
-    res.status(201).json(entry);
+    res.status(201).json(obj);
   } catch (error) {
     next(error);
   }
@@ -102,70 +83,56 @@ router.post('/start', async (req, res, next) => {
 router.post('/stop', async (req, res, next) => {
   try {
     const { taskId, projectId } = req.params;
-
-    const activeEntry = await prisma.timeEntry.findFirst({
-      where: {
-        taskId,
-        userId: req.user.id,
-        endTime: null,
-      },
+    const activeEntry = await TimeEntry.findOne({
+      taskId, userId: req.user.id, endTime: null,
     });
 
     if (!activeEntry) {
       return res.status(400).json({ error: 'No active timer found for this task.' });
     }
 
-    const updated = await prisma.timeEntry.update({
-      where: { id: activeEntry.id },
-      data: { endTime: new Date() },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const updated = await TimeEntry.findByIdAndUpdate(
+      activeEntry.id,
+      { endTime: new Date() },
+      { new: true }
+    ).populate('userId', 'name email');
+
+    const obj = updated.toJSON();
+    obj.user = { id: updated.userId._id.toString(), name: updated.userId.name, email: updated.userId.email };
+    obj.userId = updated.userId._id.toString();
 
     req.io.to(`project_${projectId}`).emit('timer_stopped', {
-      taskId,
-      userId: req.user.id,
-      entryId: updated.id,
+      taskId, userId: req.user.id, entryId: updated.id,
       duration: Math.floor((new Date(updated.endTime) - new Date(updated.startTime)) / 1000),
     });
 
-    res.json(updated);
+    res.json(obj);
   } catch (error) {
     next(error);
   }
 });
 
-// GET summary of time tracked per user on a task
+// GET summary
 router.get('/summary', async (req, res, next) => {
   try {
     const { taskId, projectId } = req.params;
-
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task || task.projectId !== projectId) {
+    const task = await Task.findById(taskId);
+    if (!task || task.projectId.toString() !== projectId) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    const entries = await prisma.timeEntry.findMany({
-      where: { taskId, endTime: { not: null } },
-      include: {
-        user: { select: { id: true, name: true } },
-      },
-    });
+    const entries = await TimeEntry.find({ taskId, endTime: { $ne: null } })
+      .populate('userId', 'name');
 
-    // Group by user
     const byUser = {};
     entries.forEach(entry => {
       const seconds = Math.floor((new Date(entry.endTime) - new Date(entry.startTime)) / 1000);
-      if (!byUser[entry.userId]) {
-        byUser[entry.userId] = {
-          user: entry.user,
-          totalSeconds: 0,
-          sessionCount: 0,
-        };
+      const uid = entry.userId._id.toString();
+      if (!byUser[uid]) {
+        byUser[uid] = { user: { id: uid, name: entry.userId.name }, totalSeconds: 0, sessionCount: 0 };
       }
-      byUser[entry.userId].totalSeconds += seconds;
-      byUser[entry.userId].sessionCount += 1;
+      byUser[uid].totalSeconds += seconds;
+      byUser[uid].sessionCount += 1;
     });
 
     res.json({

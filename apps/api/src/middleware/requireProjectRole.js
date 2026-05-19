@@ -1,4 +1,4 @@
-const prisma = require('../lib/prisma');
+const { ProjectMember } = require('../models');
 
 const requireProjectRole = (requiredRoles) => {
   return async (req, res, next) => {
@@ -8,13 +8,9 @@ const requireProjectRole = (requiredRoles) => {
         return res.status(400).json({ error: 'Project ID is required' });
       }
 
-      const membership = await prisma.projectMember.findUnique({
-        where: {
-          userId_projectId: {
-            userId: req.user.id,
-            projectId: projectId,
-          },
-        },
+      const membership = await ProjectMember.findOne({
+        userId: req.user.id,
+        projectId: projectId,
       });
 
       if (!membership) {

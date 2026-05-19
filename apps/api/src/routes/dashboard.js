@@ -1,69 +1,52 @@
 const express = require('express');
-const prisma = require('../lib/prisma');
+const mongoose = require('mongoose');
+const { Task, User } = require('../models');
 const authenticate = require('../middleware/authenticate');
 const requireProjectRole = require('../middleware/requireProjectRole');
 
 const router = express.Router({ mergeParams: true });
-
 router.use(authenticate);
 router.use(requireProjectRole(['ADMIN']));
 
 router.get('/', async (req, res, next) => {
   try {
     const projectId = req.params.projectId;
+    const objectId = new mongoose.Types.ObjectId(projectId);
 
     const [totalTasks, tasksByStatusRaw, tasksByUserRaw, overdueTasks] = await Promise.all([
-      prisma.task.count({ where: { projectId } }),
-      prisma.task.groupBy({
-        by: ['status'],
-        where: { projectId },
-        _count: { id: true },
-      }),
-      prisma.task.groupBy({
-        by: ['assigneeId'],
-        where: { projectId, assigneeId: { not: null } },
-        _count: { id: true },
-      }),
-      prisma.task.count({
-        where: {
-          projectId,
-          dueDate: { lt: new Date() },
-          status: { not: 'DONE' },
-        },
+      Task.countDocuments({ projectId }),
+      Task.aggregate([
+        { $match: { projectId: objectId } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Task.aggregate([
+        { $match: { projectId: objectId, assigneeId: { $ne: null } } },
+        { $group: { _id: '$assigneeId', count: { $sum: 1 } } },
+      ]),
+      Task.countDocuments({
+        projectId,
+        dueDate: { $lt: new Date() },
+        status: { $ne: 'DONE' },
       }),
     ]);
 
-    const byStatus = {
-      TODO: 0,
-      IN_PROGRESS: 0,
-      DONE: 0,
-    };
-    tasksByStatusRaw.forEach((item) => {
-      byStatus[item.status] = item._count.id;
-    });
+    const byStatus = { TODO: 0, IN_PROGRESS: 0, DONE: 0 };
+    tasksByStatusRaw.forEach(item => { byStatus[item._id] = item.count; });
 
     // Get user details for tasksByUser
-    const userIds = tasksByUserRaw.map(t => t.assigneeId);
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, name: true }
-    });
-    
+    const userIds = tasksByUserRaw.map(t => t._id);
+    const users = await User.find({ _id: { $in: userIds } }).select('name');
+
     const byUser = tasksByUserRaw.map(item => {
-      const user = users.find(u => u.id === item.assigneeId);
+      const user = users.find(u => u._id.toString() === item._id.toString());
       return {
-        userId: item.assigneeId,
+        userId: item._id.toString(),
         name: user ? user.name : 'Unknown',
-        taskCount: item._count.id
+        taskCount: item.count,
       };
     });
 
-    res.json({
-      totalTasks,
-      byStatus,
-      byUser,
-      overdue: overdueTasks,
-    });
+    res.json({ totalTasks, byStatus, byUser, overdue: overdueTasks });
   } catch (error) {
     next(error);
   }

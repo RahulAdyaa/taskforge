@@ -14,11 +14,6 @@ build/
 **/dist/
 **/build/
 
-# Database
-*.db
-*.db-journal
-apps/api/prisma/*.db
-
 # Logs
 *.log
 npm-debug.log*
@@ -33,5 +28,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Prisma generated
-apps/api/src/generated/
+# Vercel
+.vercel/

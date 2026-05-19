@@ -1,15 +1,25 @@
 const errorHandler = (err, req, res, next) => {
   console.log("Error Name:", err.name, err.message);
+
   if (err.name === 'ZodError') {
     return res.status(400).json({ error: 'Validation Error', details: err.errors || err.issues });
   }
 
-  // Prisma errors
-  if (err.code === 'P2002') {
-    return res.status(409).json({ error: 'Conflict: Unique constraint failed' });
+  // Mongoose duplicate key error (replaces Prisma P2002)
+  if (err.name === 'MongoServerError' && err.code === 11000) {
+    const field = Object.keys(err.keyPattern || {}).join(', ');
+    return res.status(409).json({ error: `Conflict: Duplicate value for ${field}` });
   }
-  if (err.code === 'P2025') {
-    return res.status(404).json({ error: 'Not Found' });
+
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    const messages = Object.values(err.errors).map(e => e.message);
+    return res.status(400).json({ error: 'Validation Error', details: messages });
+  }
+
+  // Mongoose cast error (invalid ObjectId)
+  if (err.name === 'CastError' && err.kind === 'ObjectId') {
+    return res.status(404).json({ error: 'Not Found: Invalid ID format' });
   }
 
   console.error(err);

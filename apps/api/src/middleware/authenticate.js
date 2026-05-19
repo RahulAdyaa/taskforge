@@ -1,5 +1,5 @@
 const { verifyAccessToken } = require('../lib/jwt');
-const prisma = require('../lib/prisma');
+const { User } = require('../models');
 
 const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -10,7 +10,7 @@ const authenticate = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const payload = verifyAccessToken(token);
-    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    const user = await User.findById(payload.userId);
     
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized: User not found' });

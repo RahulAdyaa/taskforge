@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const { z } = require('zod');
-const prisma = require('../lib/prisma');
+const { User } = require('../models');
 const validate = require('../middleware/validate');
 const authenticate = require('../middleware/authenticate');
 const { generateTokens, verifyRefreshToken } = require('../lib/jwt');
@@ -32,12 +32,10 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
     });
 
     const { accessToken, refreshToken } = generateTokens(user.id);
@@ -59,7 +57,7 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await User.findOne({ email });
     if (!user || !user.password) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -107,10 +105,7 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', authenticate, async (req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, name: true, email: true }
-    });
+    const user = await User.findById(req.user.id).select('name email');
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (error) {
@@ -128,21 +123,20 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     const payload = ticket.getPayload();
     const { email, name, sub: googleId } = payload;
 
-    let user = await prisma.user.findUnique({ where: { email } });
+    let user = await User.findOne({ email });
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          googleId,
-        }
+      user = await User.create({
+        email,
+        name,
+        googleId,
       });
     } else if (!user.googleId) {
-      user = await prisma.user.update({
-        where: { email },
-        data: { googleId }
-      });
+      user = await User.findOneAndUpdate(
+        { email },
+        { googleId },
+        { new: true }
+      );
     }
 
     const { accessToken, refreshToken } = generateTokens(user.id);
@@ -168,10 +162,11 @@ router.patch('/profile', authenticate, async (req, res, next) => {
     if (!name || name.length < 2) {
       return res.status(400).json({ error: 'Name must be at least 2 characters.' });
     }
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data: { name },
-    });
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { name },
+      { new: true }
+    );
     res.json({ id: user.id, name: user.name, email: user.email });
   } catch (error) {
     next(error);
@@ -189,7 +184,7 @@ router.patch('/password', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'New password must be at least 8 characters.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const user = await User.findById(req.user.id);
     if (!user.password) {
       return res.status(400).json({ error: 'Account uses Google Sign-In. Password cannot be changed.' });
     }
@@ -200,10 +195,7 @@ router.patch('/password', authenticate, async (req, res, next) => {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { password: hashedPassword },
-    });
+    await User.findByIdAndUpdate(req.user.id, { password: hashedPassword });
 
     res.json({ message: 'Password updated successfully.' });
   } catch (error) {
