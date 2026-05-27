@@ -115,7 +115,7 @@ export default function MyTasks() {
                 <div className="mt-auto pt-4 space-y-4">
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-[10px] font-mono px-2 py-1 rounded-full border ${getStatusColor(task.status)}`}>
-                      {task.status.replace('_', ' ')}
+                      {task.status ? task.status.replace('_', ' ') : ''}
                     </span>
                     <span className={`text-[10px] font-mono px-2 py-1 rounded-full border ${getPriorityColor(task.priority)}`}>
                       {task.priority}
@@ -129,7 +129,7 @@ export default function MyTasks() {
                   
                   <div className="flex items-center justify-between border-t border-[#E8E4DD] pt-4 font-mono text-xs text-black/50">
                     <span className="truncate pr-2 border-r border-[#E8E4DD] mr-2">
-                      {task.project.name}
+                      {task.project?.name || 'Deleted Project'}
                     </span>
                     <div className="flex items-center gap-1 whitespace-nowrap">
                       {task.dueDate ? (

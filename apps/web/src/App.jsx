@@ -8,6 +8,8 @@ import ProjectView from './pages/ProjectView';
 import Settings from './pages/Settings';
 import AccountSettings from './pages/AccountSettings';
 import MyTasks from './pages/MyTasks';
+import PublicProfile from './pages/PublicProfile';
+import ForgotPassword from './pages/ForgotPassword';
 import { useAuthStore } from './store/authStore';
 import api from './lib/axios';
 
@@ -56,6 +58,7 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
           <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -63,6 +66,7 @@ function App() {
           <Route path="/app/projects/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
           <Route path="/app/projects/:id/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/app/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+          <Route path="/profile/:username" element={<PublicProfile />} />
         </Routes>
       </Router>
     </ThemeProvider>
