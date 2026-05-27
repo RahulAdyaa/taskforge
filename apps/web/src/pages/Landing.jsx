@@ -59,7 +59,10 @@ const Hero = () => {
       </div>
       
       <div className="relative z-10 text-white max-w-4xl">
-        <div className="hero-text font-mono text-signal-red text-sm mb-6 tracking-widest">TASKFORGE — PRECISION TASK ENGINE</div>
+        <div className="hero-text mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-signal-red/10 border border-signal-red/30 backdrop-blur-md font-mono text-[#FF7066] text-xs tracking-wider font-semibold uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-signal-red animate-pulse"></span>
+          TASKFORGE — PRECISION TASK ENGINE
+        </div>
         <h1 className="hero-text font-sans font-bold text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-none mb-2">Command the</h1>
         <h2 className="hero-text font-display italic text-7xl md:text-9xl lg:text-[12rem] leading-none mb-12">Workflow.</h2>
         <Link to="/signup" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
@@ -196,7 +199,7 @@ const Philosophy = () => {
         </p>
         <h2 className="font-display italic text-5xl md:text-7xl lg:text-9xl leading-tight">
           {"We focus on: ".split(' ').map((word, i) => <span key={i} className="phil-word inline-block mr-4">{word}</span>)}
-          <span className="phil-word inline-block text-signal-red">clarity.</span>
+          <span className="phil-word inline-block text-[#FF7066]">clarity.</span>
         </h2>
       </div>
     </section>
