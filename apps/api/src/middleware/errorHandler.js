@@ -11,10 +11,16 @@ const errorHandler = (err, req, res, next) => {
     return res.status(409).json({ error: `Conflict: Duplicate value for ${field}` });
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
+  // Mongoose validation error (has .errors object)
+  if (err.name === 'ValidationError' && err.errors) {
     const messages = Object.values(err.errors).map(e => e.message);
     return res.status(400).json({ error: 'Validation Error', details: messages });
+  }
+
+  // Express v5 header validation error (e.g. malformed 'Forwarded' header)
+  if (err.name === 'ValidationError') {
+    console.warn('Express ValidationError (likely proxy header):', err.message);
+    return res.status(400).json({ error: 'Bad Request' });
   }
 
   // Mongoose cast error (invalid ObjectId)

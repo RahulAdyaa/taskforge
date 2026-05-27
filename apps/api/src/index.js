@@ -19,6 +19,16 @@ const settingsRoutes = require('./routes/settings');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Fix Express v5 strict Forwarded header validation on Vercel ───
+// Vercel's proxy injects a 'Forwarded' header that Express v5 rejects
+// with "ValidationError: The 'Forwarded' header". Strip it early.
+app.use((req, res, next) => {
+  if (req.headers['forwarded']) {
+    delete req.headers['forwarded'];
+  }
+  next();
+});
+
 // CORS — allow frontend origin
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',

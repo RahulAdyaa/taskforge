@@ -75,20 +75,42 @@ const googleLoginSchema = z.object({
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-    
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Generate a default unique username handle
-    const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
-    const rand = Math.floor(1000 + Math.random() * 9000);
-    const username = `${baseUsername}_${rand}`;
 
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      username,
-    });
+    // Pre-check: if email already exists, return a clear message
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate a unique username handle with retry on collision
+    const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+    let user = null;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 5;
+
+    while (!user && attempts < MAX_ATTEMPTS) {
+      try {
+        const rand = Math.floor(100000 + Math.random() * 900000); // 6-digit random
+        const username = `${baseUsername}_${rand}`;
+        user = await User.create({
+          name,
+          email,
+          password: hashedPassword,
+          username,
+        });
+      } catch (createErr) {
+        // If duplicate key error on username, retry with new random suffix
+        if (createErr.code === 11000 && createErr.keyPattern?.username) {
+          attempts++;
+          if (attempts >= MAX_ATTEMPTS) throw createErr;
+          continue;
+        }
+        // For any other duplicate (e.g. email race condition), surface it
+        throw createErr;
+      }
+    }
 
     // Record session
     await recordSession(user, req, true);
