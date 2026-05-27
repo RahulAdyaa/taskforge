@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../store/themeStore';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 
 const Github = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -45,9 +46,10 @@ export default function AccountSettings() {
   const setAuth = useAuthStore(state => state.setAuth);
   const logout = useAuthStore(state => state.logout);
   const [activeSection, setActiveSection] = useState('profile');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { setThemeExplicitly } = useTheme();
 
-  // Load fresh user data on mount
+  // Load fresh user data and workspaces count on mount
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -57,39 +59,30 @@ export default function AccountSettings() {
         console.error('Failed to load user details', err);
       }
     };
+    const loadProjects = async () => {
+      try {
+        const { data } = await api.get('/projects');
+        setMyProjects(data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    const loadAnalytics = async () => {
+      try {
+        const { data } = await api.get('/settings/analytics');
+        setAnalyticsData(data);
+      } catch (err) {
+        console.error('Failed to load settings analytics', err);
+      } finally {
+        setLoadingAnalytics(false);
+      }
+    };
     fetchUser();
+    loadProjects();
+    loadAnalytics();
   }, []);
 
-  // Update dynamic CSS Accent Color Variables
-  useEffect(() => {
-    if (!user) return;
-    const root = document.documentElement;
-    // Set dark theme class
-    if (user.theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
 
-    let styleTag = document.getElementById('custom-accent-vars');
-    if (!styleTag) {
-      styleTag = document.createElement('style');
-      styleTag.id = 'custom-accent-vars';
-      document.head.appendChild(styleTag);
-    }
-    const colorHex = 
-      user.accentColor === 'blue' ? '#2563EB' : 
-      user.accentColor === 'green' ? '#10B981' : 
-      user.accentColor === 'yellow' ? '#F59E0B' : 
-      user.accentColor === 'purple' ? '#8B5CF6' : '#E63B2E';
-    
-    styleTag.innerHTML = `
-      :root {
-        --color-accent: ${colorHex};
-        --color-accent-hover: ${colorHex}e0;
-      }
-    `;
-  }, [user?.accentColor, user?.theme]);
 
   // Sidebar sections
   const sections = [
@@ -176,11 +169,17 @@ export default function AccountSettings() {
   const [activeSessions, setActiveSessions] = useState([]);
   const [loginActivity, setLoginActivity] = useState([]);
 
+  // Activities Log
+  const [activities, setActivities] = useState([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+
   // Workspaces
   const [myProjects, setMyProjects] = useState([]);
   const [inviteModalProj, setInviteModalProj] = useState(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [orgName, setOrgName] = useState('My Core Org');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
 
   // Load forms fields when user loads
   useEffect(() => {
@@ -231,13 +230,16 @@ export default function AccountSettings() {
     }
   }, [user]);
 
-  // Load sessions on mount or security tab select
+  // Load sessions, projects or activities dynamically on active tab select
   useEffect(() => {
     if (activeSection === 'security') {
       fetchSessions();
     }
     if (activeSection === 'workspaces') {
       fetchProjects();
+    }
+    if (activeSection === 'activity') {
+      fetchActivities();
     }
   }, [activeSection]);
 
@@ -257,6 +259,18 @@ export default function AccountSettings() {
       setMyProjects(data || []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchActivities = async () => {
+    setIsLoadingActivities(true);
+    try {
+      const { data } = await api.get('/settings/activity');
+      setActivities(data || []);
+    } catch (err) {
+      toast.error('Failed to load activity logs.');
+    } finally {
+      setIsLoadingActivities(false);
     }
   };
 
@@ -603,8 +617,23 @@ export default function AccountSettings() {
 
   return (
     <div className="min-h-screen bg-off-white dark:bg-[#0D0D0D] flex transition-all duration-300">
+      {/* Sidebar Toggle Button */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="fixed top-5 left-5 z-50 w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#1A1A1A] border border-[#E8E4DD] dark:border-[#2A2A2A] shadow-md hover:shadow-lg transition-all duration-200"
+        title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+      >
+        {sidebarOpen ? (
+          <X className="w-4 h-4" />
+        ) : (
+          <Layout className="w-4 h-4" />
+        )}
+      </button>
+
       {/* Sidebar Navigation */}
-      <div className="w-80 bg-[#F5F3EE] dark:bg-[#141414] border-r border-[#E8E4DD] dark:border-[#2A2A2A] flex flex-col p-6 fixed h-full overflow-y-auto">
+      <div className={`bg-[#F5F3EE] dark:bg-[#141414] border-r border-[#E8E4DD] dark:border-[#2A2A2A] flex flex-col p-6 pt-20 fixed h-full overflow-y-auto transition-all duration-300 z-40 ${
+        sidebarOpen ? 'w-80 translate-x-0' : 'w-80 -translate-x-full'
+      }`}>
         <Link to="/app" className="flex items-center gap-3 text-black/60 dark:text-[#E8E4DD]/60 hover:text-black dark:hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-5 h-5" />
           <span className="font-sans font-medium text-sm">Dashboard Overview</span>
@@ -624,20 +653,20 @@ export default function AccountSettings() {
           </div>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {sections.map(s => {
             const Icon = s.icon;
             return (
               <button
                 key={s.id}
                 onClick={() => setActiveSection(s.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
                   activeSection === s.id
-                    ? 'bg-white dark:bg-[#1A1A1A] border border-[#E8E4DD] dark:border-[#2A2A2A] text-black dark:text-white shadow-sm'
-                    : 'text-black/60 dark:text-[#E8E4DD]/60 hover:text-black dark:hover:text-white hover:bg-white/30 dark:hover:bg-white/5'
+                    ? 'bg-white dark:bg-[#1A1A1A] border-[#E8E4DD] dark:border-[#2A2A2A] text-black dark:text-white shadow-md'
+                    : 'border-transparent text-black/60 dark:text-[#E8E4DD]/60 hover:text-black dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5 hover:border-[#E8E4DD]/50 dark:hover:border-[#2A2A2A]/50 hover:shadow-sm'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${activeSection === s.id ? 'text-[var(--color-accent)]' : ''}`} />
+                <Icon className={`w-4 h-4 flex-shrink-0 ${activeSection === s.id ? 'text-[var(--color-accent)]' : ''}`} />
                 <span>{s.label}</span>
               </button>
             );
@@ -662,35 +691,70 @@ export default function AccountSettings() {
       </div>
 
       {/* Main Settings Panel */}
-      <div className="flex-1 ml-80 p-12 max-w-4xl overflow-x-hidden">
+      <div className={`flex-1 p-12 overflow-x-hidden relative transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0 pl-20'}`}>
+        {/* Page-level dynamic ambient color glow */}
+        <div 
+          className="absolute -top-20 left-1/3 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-[0.06] pointer-events-none transition-all duration-1000"
+          style={{ backgroundColor: 'var(--color-accent)' }}
+        />
+
         {/* Banner Mockup preview if active */}
-        <div className="relative h-44 rounded-3xl overflow-hidden border border-[#E8E4DD] dark:border-[#2A2A2A] bg-gradient-to-r from-neutral-200 to-neutral-300 dark:from-neutral-800 dark:to-neutral-900 mb-8 shadow-sm flex items-end p-6">
-          {banner && <img src={banner} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />}
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white dark:border-[#141414] bg-neutral-900 shadow-md">
-              {avatar ? (
-                <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center font-bold text-white text-2xl font-display">
-                  {user?.name?.charAt(0)?.toUpperCase() || '?'}
-                </div>
-              )}
+        <div className="relative h-44 rounded-3xl overflow-hidden border border-[#E8E4DD] dark:border-[#2A2A2A] bg-neutral-900 dark:bg-neutral-950 mb-8 shadow-md flex items-center p-6 transition-all duration-300">
+          {/* Ambient Glow reflecting dynamic accent color */}
+          <div 
+            className="absolute top-0 right-0 w-64 h-64 rounded-full filter blur-[50px] opacity-25 pointer-events-none transition-all duration-500"
+            style={{ backgroundColor: 'var(--color-accent)' }}
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.05),transparent)] pointer-events-none" />
+          
+          {banner && (
+            <>
+              <img src={banner} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/35" />
+            </>
+          )}
+
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center w-full gap-4">
+            {/* Left side: Avatar and Info */}
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-20 h-20 rounded-2xl overflow-hidden border-2 bg-neutral-950 shadow-lg transition-all duration-300 flex items-center justify-center"
+                style={{ borderColor: 'var(--color-accent)' }}
+              >
+                {avatar ? (
+                  <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="font-bold text-white text-2xl font-display">
+                    {user?.name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h2 className="font-display font-extrabold text-4xl tracking-tight text-white drop-shadow-md leading-tight">{user?.name}</h2>
+                <p className="font-mono text-xs text-white/70 drop-shadow-md">
+                  {user?.headline || 'No professional headline set.'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-display italic text-2xl text-white drop-shadow-md leading-tight">{user?.name}</h2>
-              <p className="font-mono text-xs text-white/80 drop-shadow-md">
-                {user?.headline || 'No professional headline set.'}
-              </p>
+
+            {/* Right side: Member info */}
+            <div className="flex flex-col items-end gap-1 md:self-center text-right">
+              <span className="font-mono text-[10px] text-white/40 uppercase tracking-widest">Member since</span>
+              <span className="font-sans font-medium text-sm text-white/90">
+                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
+              </span>
+              <span className="font-mono text-[10px] text-white/50 mt-2">{user?.email}</span>
+              <span className="font-mono text-[10px] text-white/40 mt-1">{myProjects.length || 0} projects</span>
             </div>
           </div>
         </div>
 
-        <div className="backdrop-blur-md bg-white/75 dark:bg-[#1A1A1A]/75 border border-[#E8E4DD] dark:border-[#2A2A2A] shadow-2xl rounded-[2rem] p-10 transition-all duration-300">
+        <div className="settings-panel-card border border-[#E8E4DD] dark:border-[#2A2A2A] shadow-2xl rounded-[2rem] p-10 transition-all duration-300">
           
           {/* TAB 1: BASIC PROFILE */}
           {activeSection === 'profile' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Basic Profile</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Basic Profile</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Identity Settings & Visuals</p>
 
               <form onSubmit={handleUpdateProfile} className="space-y-6">
@@ -778,7 +842,7 @@ export default function AccountSettings() {
           {/* TAB 2: PERSONAL INFO */}
           {activeSection === 'personal' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Personal Information</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Personal Information</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Localization & Contacts</p>
 
               <form onSubmit={handleUpdatePersonal} className="space-y-6">
@@ -859,7 +923,7 @@ export default function AccountSettings() {
           {/* TAB 3: SOCIALS & PORTFOLIO */}
           {activeSection === 'socials' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Credentials & Socials</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Credentials & Socials</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Professional Links & Skills</p>
 
               <form onSubmit={handleUpdateSocials} className="space-y-6">
@@ -1094,25 +1158,25 @@ export default function AccountSettings() {
           {/* TAB 4: STATISTICS & DASHBOARD */}
           {activeSection === 'stats' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Operational Analytics</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Operational Analytics</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Performance & Usage Dashboard</p>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-[#F5F3EE] dark:bg-[#141414] border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-5 text-center shadow-sm">
                   <div className="font-mono text-xs uppercase text-black/40 mb-2">Projects</div>
-                  <div className="font-display italic text-3xl font-bold">{myProjects.length || 3}</div>
+                  <div className="font-sans font-bold text-4xl tracking-tight">{loadingAnalytics ? '...' : (analyticsData?.projectsCount ?? 0)}</div>
                 </div>
                 <div className="bg-[#F5F3EE] dark:bg-[#141414] border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-5 text-center shadow-sm">
                   <div className="font-mono text-xs uppercase text-black/40 mb-2">API Calls</div>
-                  <div className="font-display italic text-3xl font-bold">14,208</div>
+                  <div className="font-sans font-bold text-4xl tracking-tight">{loadingAnalytics ? '...' : (analyticsData?.apiCalls?.toLocaleString() ?? '0')}</div>
                 </div>
                 <div className="bg-[#F5F3EE] dark:bg-[#141414] border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-5 text-center shadow-sm">
                   <div className="font-mono text-xs uppercase text-black/40 mb-2">AI Runs</div>
-                  <div className="font-display italic text-3xl font-bold">{100 - (user?.aiCredits || 100)}</div>
+                  <div className="font-sans font-bold text-4xl tracking-tight">{loadingAnalytics ? '...' : (analyticsData?.aiRuns ?? 0)}</div>
                 </div>
                 <div className="bg-[#F5F3EE] dark:bg-[#141414] border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-5 text-center shadow-sm">
                   <div className="font-mono text-xs uppercase text-black/40 mb-2">Storage</div>
-                  <div className="font-display italic text-3xl font-bold">4.2 MB</div>
+                  <div className="font-sans font-bold text-4xl tracking-tight">{loadingAnalytics ? '...' : (analyticsData?.storageStr ?? '0 KB')}</div>
                 </div>
               </div>
 
@@ -1122,36 +1186,58 @@ export default function AccountSettings() {
                   <span className="font-sans font-bold text-sm">Monthly Operational Traffic</span>
                   <span className="font-mono text-[10px] text-black/50">Last Active: Today</span>
                 </div>
-                {/* Visual SVG Mini Chart */}
                 <div className="h-44 w-full">
-                  <svg className="w-full h-full" viewBox="0 0 500 150">
-                    <defs>
-                      <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 10,130 C 50,110 80,70 120,80 C 160,90 200,30 240,40 C 280,50 320,110 360,90 C 400,70 440,20 480,10 L 480,140 L 10,140 Z"
-                      fill="url(#chartGradient)"
-                    />
-                    <path
-                      d="M 10,130 C 50,110 80,70 120,80 C 160,90 200,30 240,40 C 280,50 320,110 360,90 C 400,70 440,20 480,10"
-                      fill="none"
-                      stroke="var(--color-accent)"
-                      strokeWidth="3"
-                    />
-                    <circle cx="120" cy="80" r="4" fill="var(--color-accent)" />
-                    <circle cx="240" cy="40" r="4" fill="var(--color-accent)" />
-                    <circle cx="360" cy="90" r="4" fill="var(--color-accent)" />
-                    <circle cx="480" cy="10" r="5" fill="var(--color-accent)" />
-                  </svg>
-                </div>
-                <div className="flex justify-between font-mono text-[10px] text-black/40 mt-3">
-                  <span>WEEK 1</span>
-                  <span>WEEK 2</span>
-                  <span>WEEK 3</span>
-                  <span>WEEK 4</span>
+                  {loadingAnalytics ? (
+                    <div className="w-full h-full flex items-center justify-center font-mono text-xs text-black/40">
+                      Analyzing activity logs...
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={analyticsData?.trafficData || []}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="opChartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="name"
+                          stroke="#888"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                          dy={10}
+                        />
+                        <YAxis
+                          stroke="#888"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: '#fff',
+                            fontSize: '11px',
+                            fontFamily: 'monospace'
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="traffic"
+                          stroke="var(--color-accent)"
+                          strokeWidth={2.5}
+                          fillOpacity={1}
+                          fill="url(#opChartGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
@@ -1160,7 +1246,7 @@ export default function AccountSettings() {
           {/* TAB 5: PREFERENCES */}
           {activeSection === 'preferences' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Preferences & Toggles</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Preferences & Toggles</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Personalize TaskForge Environment</p>
 
               <form onSubmit={handleUpdatePreferences} className="space-y-6">
@@ -1290,7 +1376,7 @@ export default function AccountSettings() {
           {/* TAB 6: SECURITY & 2FA */}
           {activeSection === 'security' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Access Security</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Access Security</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">2FA, Password & Sessions</p>
 
               {/* 2FA Card */}
@@ -1442,7 +1528,7 @@ export default function AccountSettings() {
           {/* TAB 7: DEVELOPER SDK */}
           {activeSection === 'developer' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Developer Features</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Developer Features</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Access keys & Webhooks</p>
 
               {/* Dev mode toggle */}
@@ -1556,7 +1642,7 @@ export default function AccountSettings() {
           {/* TAB 8: WORKSPACES */}
           {activeSection === 'workspaces' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Workspaces & Organizations</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Workspaces & Organizations</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Manage Teams & Shared Projects</p>
 
               {/* Organization setup */}
@@ -1647,34 +1733,39 @@ export default function AccountSettings() {
           {/* TAB 9: ACTIVITY LOG */}
           {activeSection === 'activity' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Operational History</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Operational History</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Activity Timeline & Logs</p>
 
-              {/* Activity Timeline */}
-              <div className="relative border-l-2 border-[#E8E4DD] dark:border-[#2A2A2A] pl-6 ml-3 space-y-6">
-                <div className="relative">
-                  <div className="absolute -left-9 top-1 w-6 h-6 rounded-full bg-black border-4 border-white dark:border-[#1A1A1A] flex items-center justify-center" />
-                  <div className="font-sans font-bold text-xs">Logged into System</div>
-                  <div className="font-mono text-[10px] text-black/40">Today, 6:42 PM • Device: {activeSessions[0]?.device || 'Chrome (MacOS)'}</div>
+              {isLoadingActivities ? (
+                <div className="font-mono text-xs animate-pulse">Retrieving activity timeline logs...</div>
+              ) : activities.length === 0 ? (
+                <div className="py-8 text-center font-mono text-xs text-black/50 dark:text-zinc-500 border border-dashed border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl">
+                  No activity recorded yet for this session.
                 </div>
-                <div className="relative">
-                  <div className="absolute -left-9 top-1 w-6 h-6 rounded-full bg-black border-4 border-white dark:border-[#1A1A1A]" />
-                  <div className="font-sans font-bold text-xs">Updated settings credentials</div>
-                  <div className="font-mono text-[10px] text-black/40">Today, 6:40 PM • Accent color updated to red</div>
+              ) : (
+                /* Activity Timeline */
+                <div className="relative border-l-2 border-[#E8E4DD] dark:border-[#2A2A2A] pl-6 ml-3 space-y-6">
+                  {activities.map((act) => (
+                    <div key={act.id} className="relative">
+                      <div 
+                        className="absolute -left-[33px] top-1 w-4 h-4 rounded-full border-2 border-white dark:border-[#1A1A1A] flex items-center justify-center shadow-sm"
+                        style={{ backgroundColor: 'var(--color-accent)' }}
+                      />
+                      <div className="font-sans font-bold text-xs">{act.title}</div>
+                      <div className="font-mono text-[10px] text-black/50 dark:text-[#E8E4DD]/40 mt-1">
+                        {new Date(act.timestamp).toLocaleString()} • {act.details}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="relative">
-                  <div className="absolute -left-9 top-1 w-6 h-6 rounded-full bg-black border-4 border-white dark:border-[#1A1A1A]" />
-                  <div className="font-sans font-bold text-xs">Initialized repository setup</div>
-                  <div className="font-mono text-[10px] text-black/40">Yesterday, 1:20 PM • TaskForge project synced</div>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
           {/* TAB 10: AI CONFIGURATION */}
           {activeSection === 'ai' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">AI Engine Presets</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">AI Engine Presets</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Model Settings & Prompts</p>
 
               <div className="bg-[#F5F3EE] dark:bg-[#141414] border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-4 flex justify-between items-center mb-8 shadow-sm">
@@ -1682,7 +1773,7 @@ export default function AccountSettings() {
                   <div className="font-sans font-bold text-xs">AI Credits Remaining</div>
                   <div className="font-mono text-[10px] text-black/40">Daily quotas resets at midnight.</div>
                 </div>
-                <div className="font-display italic text-2xl font-bold text-[var(--color-accent)]">{user?.aiCredits ?? 100} credits</div>
+                <div className="font-sans font-bold text-3xl tracking-tight text-[var(--color-accent)]">{user?.aiCredits ?? 100} credits</div>
               </div>
 
               {/* AI Config presets */}
@@ -1785,14 +1876,14 @@ export default function AccountSettings() {
           {/* TAB 11: BILLING & PLAN */}
           {activeSection === 'billing' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Billing & Subscription</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Billing & Subscription</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Limits, Invoices & Upgrades</p>
 
               {/* Current tier card */}
               <div className="border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl p-6 bg-white dark:bg-[#141414] mb-8 shadow-sm flex justify-between items-center">
                 <div>
                   <span className="font-mono text-[9px] uppercase px-2.5 py-1 bg-black/10 dark:bg-white/10 rounded-full font-bold">Current Tier</span>
-                  <h3 className="font-display italic text-3xl mt-3 mb-1">TaskForge {user?.plan || 'FREE'}</h3>
+                  <h3 className="font-display font-extrabold text-4xl tracking-tight mt-3 mb-1">TaskForge {user?.plan || 'FREE'}</h3>
                   <p className="font-mono text-[10px] text-black/50">Renews on: June 26, 2026</p>
                 </div>
                 <button
@@ -1851,7 +1942,7 @@ export default function AccountSettings() {
           {/* TAB 12: DATA & DANGER ZONE */}
           {activeSection === 'data' && (
             <div>
-              <h2 className="font-display italic text-3xl mb-1">Data & Danger Zone</h2>
+              <h2 className="font-display font-extrabold text-4xl tracking-tight mb-1">Data & Danger Zone</h2>
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Export, Backup & Purge</p>
 
               <div className="space-y-6">

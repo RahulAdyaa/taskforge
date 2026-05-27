@@ -5,39 +5,51 @@ const authenticate = require('../middleware/authenticate');
 const router = express.Router();
 router.use(authenticate);
 
-// OpenRouter fallback chain (same models as task decomposition)
+// OpenRouter fallback chain (optimized for speed with fast free models)
 const OPENROUTER_MODELS = [
+  'openrouter/free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'qwen/qwen3-coder:free',
-  'openai/gpt-oss-120b:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
-      'X-Title': 'TaskForge',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.5,
-      max_tokens: 1500,
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    console.error(`OpenRouter standup error (${model}, HTTP ${response.status}):`, err);
-    throw new Error(`Model ${model} failed with HTTP ${response.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for free models
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+        'X-Title': 'TaskForge',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.5,
+        max_tokens: 1500,
+      }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`OpenRouter standup error (${model}, HTTP ${response.status}):`, err);
+      throw new Error(`Model ${model} failed with HTTP ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
   }
-  return response.json();
 };
 
 // POST /api/standup/generate

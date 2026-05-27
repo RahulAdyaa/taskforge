@@ -15,7 +15,7 @@ export default {
       },
       fontFamily: {
         sans: ['"Space Grotesk"', 'sans-serif'],
-        display: ['"DM Serif Display"', 'serif'],
+        display: ['"Outfit"', 'sans-serif'],
         mono: ['"Space Mono"', 'monospace'],
       },
       borderRadius: {

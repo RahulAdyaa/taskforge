@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +10,8 @@
   }
   body {
     background-color: #FAF9F6 !important; /* Premium Alabaster White */
+    background-image: radial-gradient(#E5E2DA 1.5px, transparent 1.5px) !important;
+    background-size: 24px 24px !important;
     color: #18181B !important; /* Deep Graphite */
     @apply font-sans antialiased selection:bg-signal-red selection:text-white;
     transition: background-color 0.3s ease, color 0.3s ease;
@@ -18,14 +20,18 @@
   .dark body,
   html.dark body {
     background-color: #09090B !important; /* Obsidian Dark Base */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1.5px, transparent 1.5px) !important;
+    background-size: 24px 24px !important;
     color: #F4F4F5 !important; /* Silver text */
   }
 }
 
 /* Light mode adjustments for cleaner, premium aesthetics */
-.bg-off-white,
-.bg-\[\#F5F3EE\] {
+.bg-off-white {
   background-color: #FAF9F6 !important;
+}
+.bg-\[\#F5F3EE\] {
+  background-color: #EEEBE4 !important; /* Slightly darker warm sand for sidebars/toggles */
 }
 .bg-\[\#FAFAF8\] {
   background-color: #F4F3ED !important;
@@ -33,13 +39,19 @@
 .border-\[\#E8E4DD\] {
   border-color: #E4E2DC !important;
 }
-.bg-white {
-  background-color: #FFFFFF !important;
+
+/* Glassmorphic Settings Panel Card styling */
+.settings-panel-card {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(16px);
 }
 
 /* Dark mode overrides for surfaces */
 html.dark .bg-white { 
   background-color: #121215 !important; 
+}
+html.dark .settings-panel-card {
+  background-color: rgba(18, 18, 21, 0.8) !important;
 }
 html.dark .bg-off-white,
 html.dark .bg-\[\#F5F3EE\] { 
@@ -53,6 +65,12 @@ html.dark .border-\[\#E8E4DD\] {
 }
 html.dark .text-black { 
   color: #F4F4F5 !important; 
+}
+html.dark .text-black\/80 { 
+  color: #E4E4E7 !important; 
+}
+html.dark .text-black\/70 { 
+  color: #D4D4D8 !important; 
 }
 html.dark .text-black\/60 { 
   color: #A1A1AA !important; 
@@ -72,9 +90,12 @@ html.dark .bg-\[\#E8E4DD\] {
 html.dark .hover\:bg-off-white:hover { 
   background-color: #18181C !important; 
 }
-html.dark .bg-\[\#F5F3EE\] { 
-  background-color: #0F0F12 !important; 
+
+/* Custom Cursive Display Font Helper */
+.font-cursive {
+  font-family: 'DM Serif Display', serif !important;
 }
+
 
 html.dark input, 
 html.dark textarea, 
@@ -125,3 +146,43 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #3F3F46; }
 .btn-brutal:hover::before {
   @apply translate-y-0;
 }
+
+/* Dynamic Accent Color bindings for Tailwind classes */
+:root {
+  --color-accent: #E63B2E;
+  --color-accent-hover: #E63B2Ee0;
+}
+
+.bg-signal-red {
+  background-color: var(--color-accent) !important;
+}
+.text-signal-red {
+  color: var(--color-accent) !important;
+}
+.border-signal-red {
+  border-color: var(--color-accent) !important;
+}
+.focus\:border-signal-red:focus {
+  border-color: var(--color-accent) !important;
+}
+.group-hover\:bg-signal-red:hover,
+.group:hover .group-hover\:bg-signal-red {
+  background-color: var(--color-accent) !important;
+}
+.group-hover\:border-signal-red:hover,
+.group:hover .group-hover\:border-signal-red {
+  border-color: var(--color-accent) !important;
+}
+.hover\:text-signal-red:hover {
+  color: var(--color-accent) !important;
+}
+.hover\:bg-signal-red:hover {
+  background-color: var(--color-accent) !important;
+}
+.selection\:bg-signal-red::selection {
+  background-color: var(--color-accent) !important;
+}
+.text-var-accent {
+  color: var(--color-accent) !important;
+}
+

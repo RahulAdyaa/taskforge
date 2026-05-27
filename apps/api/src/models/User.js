@@ -41,6 +41,14 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    resetPasswordOtpAttempts: {
+      type: Number,
+      default: 0,
+    },
+    resetPasswordOtpLockedUntil: {
+      type: Date,
+      default: null,
+    },
     // --- Basic Profile & Personal Info ---
     username: {
       type: String,

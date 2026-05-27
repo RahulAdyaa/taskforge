@@ -7,7 +7,7 @@ import api from '../lib/axios';
 import KanbanBoard from '../components/KanbanBoard';
 import ChatWidget from '../components/ChatWidget';
 import { useAuthStore } from '../store/authStore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, CartesianGrid } from 'recharts';
 import NotificationBell from '../components/NotificationBell';
 import TaskFilters, { applyFilters } from '../components/TaskFilters';
 import ThemeToggle from '../components/ThemeToggle';
@@ -280,45 +280,244 @@ export default function ProjectView() {
           </div>
         )}
         {activeTab === 'dashboard' && (
-          <div className="p-12 overflow-y-auto h-full max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="p-6 md:p-8 overflow-y-auto h-full space-y-6">
+            
+            {/* KPI Summary Cards - Row 1 (visible to everyone) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard title="Total Tasks" value={dashboardData?.totalTasks || 0} />
-              <StatCard title="Todo" value={dashboardData?.byStatus.TODO || 0} />
-              <StatCard title="Done" value={dashboardData?.byStatus.DONE || 0} />
+              <StatCard title="Completed" value={dashboardData?.byStatus?.DONE || 0} accent />
+              <StatCard title="In Progress" value={dashboardData?.byStatus?.IN_PROGRESS || 0} />
               <StatCard title="Overdue" value={dashboardData?.overdue || 0} isAlert />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="bg-white p-8 rounded-[2rem] border border-[#E8E4DD] shadow-sm">
-                 <h3 className="font-display italic text-2xl mb-6">Status Distribution</h3>
-                 <div className="h-64">
-                   <ResponsiveContainer width="100%" height="100%">
-                     <PieChart>
-                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                         {pieData.map((entry, index) => (
-                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                         ))}
-                       </Pie>
-                       <Tooltip />
-                     </PieChart>
-                   </ResponsiveContainer>
-                 </div>
-               </div>
+            {/* KPI Summary Cards - Row 2 (Admin only) */}
+            {isAdmin && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard title="Completion Rate" value={`${dashboardData?.completionRate || 0}%`} />
+                <StatCard title="Avg. Completion" value={`${dashboardData?.avgCompletionDays || 0}d`} subtitle="days per task" />
+                <StatCard title="Hours Tracked" value={dashboardData?.totalTrackedHours || 0} subtitle="total hours" />
+                <StatCard title="Todo" value={dashboardData?.byStatus?.TODO || 0} />
+              </div>
+            )}
 
-               <div className="bg-white p-8 rounded-[2rem] border border-[#E8E4DD] shadow-sm">
-                 <h3 className="font-display italic text-2xl mb-6">Workload per Member</h3>
-                 <div className="h-64">
-                   <ResponsiveContainer width="100%" height="100%">
-                     <BarChart data={dashboardData?.byUser || []}>
-                       <XAxis dataKey="name" tick={{fontFamily: 'Space Mono', fontSize: 10}} />
-                       <YAxis allowDecimals={false} />
-                       <Tooltip />
-                       <Bar dataKey="taskCount" fill="#111111" radius={[4, 4, 0, 0]} />
-                     </BarChart>
-                   </ResponsiveContainer>
-                 </div>
-               </div>
-            </div>
+            {/* Admin: Project Health Score */}
+            {isAdmin && dashboardData && (
+              <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display font-bold text-lg">Project Health</h3>
+                  {(() => {
+                    const total = dashboardData.totalTasks || 1;
+                    const overdueRatio = (dashboardData.overdue || 0) / total;
+                    const completionRatio = (dashboardData.byStatus?.DONE || 0) / total;
+                    const score = Math.max(0, Math.min(100, Math.round((completionRatio * 60) + ((1 - overdueRatio) * 40))));
+                    const color = score >= 75 ? 'text-green-600' : score >= 45 ? 'text-amber-500' : 'text-red-600';
+                    const label = score >= 75 ? 'Healthy' : score >= 45 ? 'Needs Attention' : 'At Risk';
+                    return (
+                      <div className="flex items-center gap-3">
+                        <span className={`font-display text-3xl font-bold ${color}`}>{score}</span>
+                        <div>
+                          <span className={`font-mono text-xs font-bold ${color}`}>{label}</span>
+                          <p className="font-mono text-[10px] text-black/40">out of 100</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="w-full bg-black/5 h-2 rounded-full overflow-hidden">
+                  {(() => {
+                    const total = dashboardData.totalTasks || 1;
+                    const overdueRatio = (dashboardData.overdue || 0) / total;
+                    const completionRatio = (dashboardData.byStatus?.DONE || 0) / total;
+                    const score = Math.max(0, Math.min(100, Math.round((completionRatio * 60) + ((1 - overdueRatio) * 40))));
+                    const color = score >= 75 ? 'bg-green-500' : score >= 45 ? 'bg-amber-500' : 'bg-red-500';
+                    return <div className={`h-full transition-all duration-500 ${color}`} style={{ width: `${score}%` }} />;
+                  })()}
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="font-mono text-[10px] text-black/40">{dashboardData.overdue || 0} overdue tasks dragging score down</span>
+                  <span className="font-mono text-[10px] text-black/40">{dashboardData.completionRate || 0}% completed</span>
+                </div>
+              </div>
+            )}
+
+            {/* Charts Row (Admin only) */}
+            {isAdmin && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Status Distribution */}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                  <h3 className="font-display font-bold text-lg mb-4">Status Distribution</h3>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value">
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontFamily: 'Space Mono', fontSize: 10 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Priority Breakdown */}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                  <h3 className="font-display font-bold text-lg mb-4">Priority Breakdown</h3>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie 
+                          data={[
+                            { name: 'Low', value: dashboardData?.byPriority?.LOW || 0 },
+                            { name: 'Medium', value: dashboardData?.byPriority?.MEDIUM || 0 },
+                            { name: 'High', value: dashboardData?.byPriority?.HIGH || 0 },
+                            { name: 'Urgent', value: dashboardData?.byPriority?.URGENT || 0 },
+                          ]}
+                          cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value"
+                        >
+                          <Cell fill="#86efac" />
+                          <Cell fill="#93c5fd" />
+                          <Cell fill="#fdba74" />
+                          <Cell fill="#E63B2E" />
+                        </Pie>
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontFamily: 'Space Mono', fontSize: 10 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Weekly Trend */}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                  <h3 className="font-display font-bold text-lg mb-4">Weekly Trend</h3>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={dashboardData?.weeklyTrend || []}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E8E4DD" />
+                        <XAxis dataKey="week" tick={{ fontFamily: 'Space Mono', fontSize: 9 }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontFamily: 'Space Mono', fontSize: 10 }} />
+                        <Line type="monotone" dataKey="created" stroke="#111111" strokeWidth={2} dot={{ r: 3 }} name="Created" />
+                        <Line type="monotone" dataKey="completed" stroke="#E63B2E" strokeWidth={2} dot={{ r: 3 }} name="Completed" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Admin: Workload + Member Performance */}
+            {isAdmin && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Workload Chart */}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                  <h3 className="font-display font-bold text-lg mb-4">Workload per Member</h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dashboardData?.byUser || []} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E8E4DD" />
+                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontFamily: 'Space Mono', fontSize: 10 }} width={100} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontFamily: 'Space Mono', fontSize: 10 }} />
+                        <Bar dataKey="completed" fill="#111111" radius={[0, 4, 4, 0]} name="Completed" stackId="a" />
+                        <Bar dataKey="overdue" fill="#E63B2E" radius={[0, 4, 4, 0]} name="Overdue" stackId="a" />
+                        <Bar dataKey="taskCount" fill="#E8E4DD" radius={[0, 4, 4, 0]} name="Total" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Member Performance Table */}
+                <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                  <h3 className="font-display font-bold text-lg mb-4">Member Performance</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-[#E8E4DD]">
+                          <th className="font-mono text-[10px] uppercase tracking-widest text-black/50 pb-3 pr-4">Member</th>
+                          <th className="font-mono text-[10px] uppercase tracking-widest text-black/50 pb-3 pr-4 text-center">Tasks</th>
+                          <th className="font-mono text-[10px] uppercase tracking-widest text-black/50 pb-3 pr-4 text-center">Done</th>
+                          <th className="font-mono text-[10px] uppercase tracking-widest text-black/50 pb-3 pr-4 text-center">Rate</th>
+                          <th className="font-mono text-[10px] uppercase tracking-widest text-black/50 pb-3 text-center">Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(dashboardData?.byUser || []).map((m, i) => (
+                          <tr key={i} className="border-b border-[#E8E4DD]/50 last:border-0">
+                            <td className="py-3 pr-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center font-mono text-[10px]">
+                                  {m.name.substring(0, 2).toUpperCase()}
+                                </div>
+                                <span className="font-sans text-sm font-medium truncate max-w-[120px]">{m.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 pr-4 text-center font-mono text-sm">{m.taskCount}</td>
+                            <td className="py-3 pr-4 text-center font-mono text-sm">{m.completed}</td>
+                            <td className="py-3 pr-4 text-center">
+                              <span className={`font-mono text-xs px-2 py-0.5 rounded-full ${
+                                m.completionRate >= 75 ? 'bg-green-100 text-green-800' :
+                                m.completionRate >= 40 ? 'bg-amber-100 text-amber-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {m.completionRate}%
+                              </span>
+                            </td>
+                            <td className="py-3 text-center font-mono text-sm">{m.hoursTracked}h</td>
+                          </tr>
+                        ))}
+                        {(!dashboardData?.byUser || dashboardData.byUser.length === 0) && (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center font-mono text-xs text-black/40">No member data available</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Member View: Personal Stats Only */}
+            {!isAdmin && (
+              <div className="bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+                <h3 className="font-display font-bold text-lg mb-4">Your Performance</h3>
+                {(() => {
+                  const currentUser = useAuthStore.getState().user;
+                  const myStats = dashboardData?.byUser?.find(u => u.name === currentUser?.name);
+                  if (!myStats) {
+                    return <p className="font-mono text-xs text-black/40 py-6 text-center">No tasks assigned to you yet.</p>;
+                  }
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-[#F5F3EE] p-4 rounded-xl text-center">
+                        <p className="font-mono text-[10px] text-black/50 uppercase tracking-widest mb-1">Assigned</p>
+                        <p className="font-display text-3xl font-bold">{myStats.taskCount}</p>
+                      </div>
+                      <div className="bg-[#F5F3EE] p-4 rounded-xl text-center">
+                        <p className="font-mono text-[10px] text-black/50 uppercase tracking-widest mb-1">Completed</p>
+                        <p className="font-display text-3xl font-bold">{myStats.completed}</p>
+                      </div>
+                      <div className="bg-[#F5F3EE] p-4 rounded-xl text-center">
+                        <p className="font-mono text-[10px] text-black/50 uppercase tracking-widest mb-1">Rate</p>
+                        <p className={`font-display text-3xl font-bold ${
+                          myStats.completionRate >= 75 ? 'text-green-600' :
+                          myStats.completionRate >= 40 ? 'text-amber-500' : 'text-red-600'
+                        }`}>{myStats.completionRate}%</p>
+                      </div>
+                      <div className="bg-[#F5F3EE] p-4 rounded-xl text-center">
+                        <p className="font-mono text-[10px] text-black/50 uppercase tracking-widest mb-1">Hours</p>
+                        <p className="font-display text-3xl font-bold">{myStats.hoursTracked}h</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
           </div>
         )}
       </main>
@@ -347,11 +546,12 @@ export default function ProjectView() {
   );
 }
 
-function StatCard({ title, value, isAlert }) {
+function StatCard({ title, value, isAlert, accent, subtitle }) {
   return (
-    <div className={`bg-white p-6 rounded-2xl border ${isAlert ? 'border-signal-red' : 'border-[#E8E4DD]'} shadow-sm`}>
-      <h4 className="font-mono text-xs text-black/50 uppercase tracking-widest mb-2">{title}</h4>
-      <div className={`font-display text-5xl ${isAlert ? 'text-signal-red' : 'text-black'}`}>{value}</div>
+    <div className={`bg-white p-5 rounded-2xl border ${isAlert ? 'border-signal-red' : accent ? 'border-black' : 'border-[#E8E4DD]'} shadow-sm`}>
+      <h4 className="font-mono text-[10px] text-black/50 uppercase tracking-widest mb-1">{title}</h4>
+      <div className={`font-display text-4xl font-bold ${isAlert ? 'text-signal-red' : accent ? 'text-black' : 'text-black'}`}>{value}</div>
+      {subtitle && <p className="font-mono text-[10px] text-black/30 mt-1">{subtitle}</p>}
     </div>
   );
 }
@@ -449,7 +649,7 @@ function AITaskModal({ projectId, members, labels, onClose }) {
         <div className="px-8 py-6 border-b border-[#E8E4DD]/10 shrink-0 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-[#E63B2E] font-bold bg-[#E63B2E]/10 px-2 py-1 rounded">AI ENGINE</span>
-            <h2 className="font-display italic text-2xl">{step === 'input' ? 'Task Decomposition' : 'Review & Configure'}</h2>
+            <h2 className="font-display font-bold text-2xl">{step === 'input' ? 'Task Decomposition' : 'Review & Configure'}</h2>
           </div>
           <div className="flex items-center gap-3">
             {step === 'review' && (
@@ -661,7 +861,7 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex justify-end">
       <div className="w-full max-w-md bg-white h-full border-l border-[#E8E4DD] shadow-2xl p-8 animate-[slideIn_0.3s_ease-out]">
         <div className="flex justify-between items-center mb-8">
-          <h2 className="font-display italic text-3xl">New Protocol</h2>
+          <h2 className="font-display font-extrabold text-3xl tracking-tight">New Protocol</h2>
           <button onClick={onClose} className="text-black/50 hover:text-black">✕</button>
         </div>
 

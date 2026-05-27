@@ -89,7 +89,7 @@ export default function MyTasks() {
       <div className="flex-1 ml-64 p-12">
         <div className="flex justify-between items-end mb-12 border-b border-[#E8E4DD] pb-6">
           <div>
-            <h1 className="font-display italic text-5xl mb-2">My Tasks</h1>
+            <h1 className="font-display font-extrabold text-5xl tracking-tight mb-2">My Tasks</h1>
             <p className="font-mono text-sm text-black/50">Your cross-project assignments</p>
           </div>
           <div className="flex items-center">

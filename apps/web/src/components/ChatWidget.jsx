@@ -60,7 +60,7 @@ export default function ChatWidget({ projectId }) {
       <div className="bg-black text-white px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span className="text-xl">✨</span>
-          <h3 className="font-display italic text-lg m-0">TaskForge AI</h3>
+          <h3 className="font-display font-bold text-lg m-0">TaskForge AI</h3>
         </div>
         <button onClick={() => setIsOpen(false)} className="text-white/60 hover:text-white transition-colors">
           ✕

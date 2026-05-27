@@ -28,6 +28,29 @@ export function ThemeProvider({ children }) {
     }
   }, [user?.theme]);
 
+  // Inject accent color dynamically into document head
+  useEffect(() => {
+    let styleTag = document.getElementById('custom-accent-vars');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'custom-accent-vars';
+      document.head.appendChild(styleTag);
+    }
+    const accent = user?.accentColor || 'red';
+    const colorHex = 
+      accent === 'blue' ? '#2563EB' : 
+      accent === 'green' ? '#10B981' : 
+      accent === 'yellow' ? '#F59E0B' : 
+      accent === 'purple' ? '#8B5CF6' : '#E63B2E';
+    
+    styleTag.innerHTML = `
+      :root {
+        --color-accent: ${colorHex};
+        --color-accent-hover: ${colorHex}e0;
+      }
+    `;
+  }, [user?.accentColor]);
+
   // Apply HTML class and write to local storage whenever theme changes
   useEffect(() => {
     const root = document.documentElement;

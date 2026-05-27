@@ -41,7 +41,7 @@ export default function StandupModal({ onClose }) {
         elements.push(<div key={i} className="h-2" />);
       } else if (trimmed.startsWith('## ')) {
         elements.push(
-          <h2 key={i} className="font-display italic text-2xl text-black mb-1">
+          <h2 key={i} className="font-display font-extrabold text-2xl text-black mb-1">
             {trimmed.replace('## ', '')}
           </h2>
         );
@@ -101,7 +101,7 @@ export default function StandupModal({ onClose }) {
               <Sparkles className="w-5 h-5 text-[#E63B2E]" />
             </div>
             <div>
-              <h2 className="font-display italic text-xl text-white">Daily Standup</h2>
+              <h2 className="font-display font-bold text-xl text-white">Daily Standup</h2>
               <p className="font-mono text-[10px] text-white/40 uppercase tracking-widest">AI-Generated Report</p>
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function StandupModal({ onClose }) {
               <div className="w-20 h-20 rounded-2xl bg-[#F5F3EE] flex items-center justify-center mx-auto mb-6">
                 <Zap className="w-10 h-10 text-[#E63B2E]" />
               </div>
-              <h3 className="font-display italic text-2xl mb-2">Ready to Generate</h3>
+              <h3 className="font-display font-extrabold text-2xl tracking-tight mb-2">Ready to Generate</h3>
               <p className="font-mono text-xs text-black/50 max-w-md mx-auto leading-relaxed mb-8">
                 The AI will analyze your tasks from the last 24 hours — completed work, 
                 current queue, blockers, and overdue items — to produce a concise standup report.
@@ -139,7 +139,7 @@ export default function StandupModal({ onClose }) {
                 <div className="absolute inset-0 rounded-full border-2 border-t-[#E63B2E] animate-spin"></div>
                 <div className="absolute inset-3 rounded-full border-2 border-t-black animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.6s' }}></div>
               </div>
-              <h3 className="font-display italic text-xl mb-2">Analyzing Your Activity</h3>
+              <h3 className="font-display font-extrabold text-xl tracking-tight mb-2">Analyzing Your Activity</h3>
               <p className="font-mono text-[10px] text-black/40 uppercase tracking-widest animate-pulse">
                 Scanning tasks · Evaluating blockers · Composing report
               </p>

@@ -7,6 +7,8 @@ const authenticate = require('../middleware/authenticate');
 const { generateTokens, verifyRefreshToken } = require('../lib/jwt');
 const { OAuth2Client } = require('google-auth-library');
 const crypto = require('crypto');
+const { sendResetOtpEmail } = require('../lib/mailer');
+const { verifyTOTP } = require('../lib/totp');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -59,13 +61,15 @@ async function recordSession(user, req, isSuccess = true) {
 
 const signupSchema = z.object({
   name: z.string().min(2),
+  username: z.string().min(3).max(30).regex(/^[a-z0-9_]+$/, { message: "Username must be lowercase letters, numbers, or underscores only" }),
   email: z.string().email(),
   password: z.string().min(8).regex(/[0-9]/, { message: "Password must contain at least one number" }),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1),
   password: z.string(),
+  code: z.string().optional(),
 });
 
 const googleLoginSchema = z.object({
@@ -74,43 +78,28 @@ const googleLoginSchema = z.object({
 
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, username, email, password } = req.body;
 
-    // Pre-check: if email already exists, return a clear message
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
+    // Check email uniqueness
+    const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    if (existingEmail) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    // Check username uniqueness
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername) {
+      return res.status(409).json({ error: 'This username is already taken.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate a unique username handle with retry on collision
-    const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
-    let user = null;
-    let attempts = 0;
-    const MAX_ATTEMPTS = 5;
-
-    while (!user && attempts < MAX_ATTEMPTS) {
-      try {
-        const rand = Math.floor(100000 + Math.random() * 900000); // 6-digit random
-        const username = `${baseUsername}_${rand}`;
-        user = await User.create({
-          name,
-          email,
-          password: hashedPassword,
-          username,
-        });
-      } catch (createErr) {
-        // If duplicate key error on username, retry with new random suffix
-        if (createErr.code === 11000 && createErr.keyPattern?.username) {
-          attempts++;
-          if (attempts >= MAX_ATTEMPTS) throw createErr;
-          continue;
-        }
-        // For any other duplicate (e.g. email race condition), surface it
-        throw createErr;
-      }
-    }
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      username: username.toLowerCase(),
+    });
 
     // Record session
     await recordSession(user, req, true);
@@ -137,17 +126,35 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
 
 router.post('/login', validate(loginSchema), async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, password, code } = req.body;
+    const lowerIdentifier = identifier.toLowerCase().trim();
 
-    const user = await User.findOne({ email });
+    // Look up by email OR username
+    const user = await User.findOne({
+      $or: [{ email: lowerIdentifier }, { username: lowerIdentifier }]
+    });
     if (!user || !user.password) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       await recordSession(user, req, false); // Log failed attempt
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Enforce 2FA if enabled
+    if (user.twoFactorEnabled) {
+      if (!code) {
+        // Prompt for code without logging a failed session
+        return res.json({ twoFactorRequired: true });
+      }
+      
+      const isValid = verifyTOTP(user.twoFactorSecret, code);
+      if (!isValid) {
+        await recordSession(user, req, false);
+        return res.status(401).json({ error: 'Invalid 2FA code.' });
+      }
     }
 
     // Record session
@@ -309,31 +316,45 @@ router.patch('/password', authenticate, async (req, res, next) => {
 
 // ─── Forgot Password Reset Flow ───────────────────────────────────
 
-// 1. Submit email to request OTP
+// Helper: hash OTP with SHA-256
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
+// 1. Submit email or username to request OTP
 router.post('/forgot-password', async (req, res, next) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required.' });
+    const { identifier } = req.body;
+    if (!identifier) return res.status(400).json({ error: 'Email or username is required.' });
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const lowerIdentifier = identifier.toLowerCase().trim();
+    const user = await User.findOne({
+      $or: [{ email: lowerIdentifier }, { username: lowerIdentifier }]
+    });
+
+    // Always return success to prevent user enumeration
     if (!user) {
-      return res.status(400).json({ error: 'Email is not registered.' });
+      return res.json({ message: 'If an account exists, a verification code has been sent.' });
     }
 
-    // Generate 6-digit numeric OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.resetPasswordOtp = otp;
-    user.resetPasswordOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins expiry
+    // Generate secure 6-digit numeric OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    
+    // Store hashed OTP, expiration, and reset attempt counter
+    user.resetPasswordOtp = hashOtp(otp);
+    user.resetPasswordOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    user.resetPasswordOtpAttempts = 0;
+    user.resetPasswordOtpLockedUntil = null;
+    // Clear any prior reset token
+    user.resetPasswordToken = null;
+    user.resetPasswordTokenExpires = null;
 
     await user.save();
 
-    console.log(`🚀 [PASSWORD RESET OTP] For: ${email} -> CODE: ${otp}`);
+    // Send OTP via actual mail transporter (SMTP or Ethereal test mailer)
+    await sendResetOtpEmail(user.email, user.name, otp);
 
-    const isDev = process.env.NODE_ENV !== 'production';
-    res.json({
-      message: 'Password reset OTP code sent to your email.',
-      ...(isDev ? { devOtp: otp } : {})
-    });
+    res.json({ message: 'If an account exists, a verification code has been sent.' });
   } catch (error) {
     next(error);
   }
@@ -342,28 +363,53 @@ router.post('/forgot-password', async (req, res, next) => {
 // 2. Verify OTP code and issue reset token
 router.post('/verify-otp', async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ error: 'Email and OTP code are required.' });
+    const { identifier, otp } = req.body;
+    if (!identifier || !otp) {
+      return res.status(400).json({ error: 'Identifier and OTP code are required.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || user.resetPasswordOtp !== otp) {
+    const lowerIdentifier = identifier.toLowerCase().trim();
+    const user = await User.findOne({
+      $or: [{ email: lowerIdentifier }, { username: lowerIdentifier }]
+    });
+
+    if (!user || !user.resetPasswordOtp) {
       return res.status(400).json({ error: 'Invalid verification code.' });
     }
 
+    // Check brute-force lockout
+    if (user.resetPasswordOtpLockedUntil && user.resetPasswordOtpLockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.resetPasswordOtpLockedUntil - Date.now()) / 60000);
+      return res.status(429).json({ error: `Too many attempts. Try again in ${minutesLeft} minute(s).` });
+    }
+
+    // Check expiry
     if (user.resetPasswordOtpExpires < new Date()) {
       return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
     }
 
-    // Generate secure token for resetting password
+    // Compare hashed OTP
+    if (user.resetPasswordOtp !== hashOtp(otp)) {
+      user.resetPasswordOtpAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
+
+      // Lock out after 5 failed attempts for 15 minutes
+      if (user.resetPasswordOtpAttempts >= 5) {
+        user.resetPasswordOtpLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      }
+      await user.save();
+      return res.status(400).json({ error: 'Invalid verification code.' });
+    }
+
+    // OTP is valid — generate secure reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = resetToken;
-    user.resetPasswordTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+    user.resetPasswordTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
     
-    // Clear OTP
+    // Invalidate OTP
     user.resetPasswordOtp = null;
     user.resetPasswordOtpExpires = null;
+    user.resetPasswordOtpAttempts = 0;
+    user.resetPasswordOtpLockedUntil = null;
     
     await user.save();
 
@@ -380,8 +426,19 @@ router.post('/reset-password', async (req, res, next) => {
     if (!token || !password) {
       return res.status(400).json({ error: 'Reset token and new password are required.' });
     }
+
+    // Password complexity: min 8 chars, 1 uppercase, 1 lowercase, 1 number
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    }
+    if (!/[a-z]/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain at least one lowercase letter.' });
+    }
+    if (!/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain at least one number.' });
     }
 
     const user = await User.findOne({
@@ -397,7 +454,14 @@ router.post('/reset-password', async (req, res, next) => {
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = null;
     user.resetPasswordTokenExpires = null;
+    user.resetPasswordOtp = null;
+    user.resetPasswordOtpExpires = null;
+    user.resetPasswordOtpAttempts = 0;
+    user.resetPasswordOtpLockedUntil = null;
     
+    // Clear active sessions to force re-login
+    user.activeSessions = [];
+
     await user.save();
 
     res.json({ success: true, message: 'Password has been reset successfully.' });

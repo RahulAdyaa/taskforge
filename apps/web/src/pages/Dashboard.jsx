@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, LayoutGrid, LogOut, ArrowRightToLine, Settings as SettingsIcon, CheckCircle2, Sparkles } from 'lucide-react';
+import { Plus, LayoutGrid, LogOut, ArrowRightToLine, Settings as SettingsIcon, CheckCircle2, Sparkles, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
@@ -130,7 +130,7 @@ export default function Dashboard() {
       <div className="flex-1 ml-64 p-12">
         <div className="flex justify-between items-end mb-12 border-b border-[#E8E4DD] pb-6">
           <div>
-            <h1 className="font-display italic text-5xl mb-2">Projects</h1>
+            <h1 className="font-display font-extrabold text-5xl tracking-tight mb-2">Projects</h1>
             <p className="font-mono text-sm text-black/50">Active Operational Zones</p>
           </div>
           <div className="flex gap-4 items-center">
@@ -209,16 +209,23 @@ export default function Dashboard() {
           <div className="font-mono animate-pulse">Scanning database...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects?.map(project => (
+            {projects?.map((project, index) => (
               <Link 
                 key={project.id} 
                 to={`/app/projects/${project.id}`}
                 className="bg-white p-6 rounded-2xl border border-[#E8E4DD] hover:border-black transition-colors shadow-sm group"
               >
                 <div className="flex justify-between items-start mb-8">
-                  <h3 className="font-sans font-bold text-xl">{project.name}</h3>
-                  <div className="w-8 h-8 rounded-full bg-off-white flex items-center justify-center border border-[#E8E4DD] group-hover:bg-signal-red group-hover:text-white group-hover:border-signal-red transition-all">
-                    <span className="font-mono text-xs">{project.members.length}</span>
+                  <h3 className="font-sans font-bold text-xl">
+                    <span className="text-black/50 dark:text-white/35 font-mono mr-2 font-normal">#{index + 1}</span>
+                    {project.name}
+                  </h3>
+                  <div 
+                    title={`${project.members.length} ${project.members.length === 1 ? 'member' : 'members'}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-off-white dark:bg-[#1A1A1A] border border-[#E8E4DD] dark:border-[#2A2A2A] text-black/60 dark:text-white/60 group-hover:bg-signal-red group-hover:text-white group-hover:border-signal-red transition-all duration-300"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span className="font-mono text-xs font-bold">{project.members.length}</span>
                   </div>
                 </div>
                 <div className="font-mono text-xs text-black/50 tracking-widest flex items-center justify-between">

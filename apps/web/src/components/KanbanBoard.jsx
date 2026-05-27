@@ -76,7 +76,7 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
   const handleDragCancel = () => setActiveTask(null);
 
   return (
-    <div className="flex h-full p-8 gap-8 overflow-x-auto bg-off-white">
+    <div className="flex h-full p-4 gap-4 overflow-x-auto bg-off-white">
       <DndContext 
         sensors={sensors} 
         collisionDetection={closestCorners} 
@@ -107,13 +107,13 @@ function Column({ id, title, tasks, projectId, onTaskClick }) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
-    <div ref={setNodeRef} className="flex-1 min-w-[320px] max-w-sm flex flex-col bg-[#F5F3EE] rounded-[2rem] p-6 border border-[#E8E4DD] shadow-inner">
-      <div className="flex items-center justify-between mb-6 px-2">
-        <h3 className="font-display italic text-2xl">{title}</h3>
+    <div ref={setNodeRef} className="flex-1 min-w-[280px] flex flex-col bg-[#F5F3EE] rounded-2xl p-4 border border-[#E8E4DD] shadow-inner">
+      <div className="flex items-center justify-between mb-4 px-1">
+        <h3 className="font-display italic text-xl">{title}</h3>
         <span className="font-mono text-xs bg-white px-2 py-1 rounded-md border border-[#E8E4DD]">{tasks.length}</span>
       </div>
       
-      <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
         {tasks.map(task => (
           <TaskCard key={task.id} task={task} projectId={projectId} onClick={() => onTaskClick(task)} />
         ))}

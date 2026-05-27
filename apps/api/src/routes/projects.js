@@ -10,6 +10,53 @@ const validate = require('../middleware/validate');
 const router = express.Router();
 router.use(authenticate);
 
+// OpenRouter AI models (optimized for speed and reliability)
+const OPENROUTER_MODELS = [
+  'openrouter/free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+];
+
+const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for free models
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+        'X-Title': 'TaskForge',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`OpenRouter API error (${model}, HTTP ${response.status}):`, err);
+      throw new Error(`Model ${model} failed with HTTP ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
 const createProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -101,22 +148,121 @@ router.post('/:id/invite', requireProjectRole(['ADMIN']), async (req, res, next)
 router.get('/:id/dashboard', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
   try {
     const projectId = req.params.id;
-    const tasks = await Task.find({ projectId }).populate('assigneeId', 'name');
+    const tasks = await Task.find({ projectId }).populate('assigneeId', 'name email');
+    const timeEntries = await TimeEntry.find({ 
+      taskId: { $in: tasks.map(t => t._id) },
+      endTime: { $ne: null }
+    }).populate('userId', 'name');
+
     const totalTasks = tasks.length;
+    const now = new Date();
+
+    // --- Status breakdown ---
     const byStatus = {
       TODO: tasks.filter(t => t.status === 'TODO').length,
       IN_PROGRESS: tasks.filter(t => t.status === 'IN_PROGRESS').length,
       DONE: tasks.filter(t => t.status === 'DONE').length,
     };
-    const userMap = {};
+
+    // --- Priority breakdown ---
+    const byPriority = {
+      LOW: tasks.filter(t => t.priority === 'LOW').length,
+      MEDIUM: tasks.filter(t => t.priority === 'MEDIUM').length,
+      HIGH: tasks.filter(t => t.priority === 'HIGH').length,
+      URGENT: tasks.filter(t => t.priority === 'URGENT').length,
+    };
+
+    // --- Overdue ---
+    const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < now && t.status !== 'DONE').length;
+
+    // --- Completion rate ---
+    const completionRate = totalTasks > 0 ? Math.round((byStatus.DONE / totalTasks) * 100) : 0;
+
+    // --- Average completion time (days) ---
+    const completedTasks = tasks.filter(t => t.status === 'DONE' && t.updatedAt && t.createdAt);
+    let avgCompletionDays = 0;
+    if (completedTasks.length > 0) {
+      const totalDays = completedTasks.reduce((sum, t) => {
+        const diff = (new Date(t.updatedAt) - new Date(t.createdAt)) / (1000 * 60 * 60 * 24);
+        return sum + diff;
+      }, 0);
+      avgCompletionDays = Math.round((totalDays / completedTasks.length) * 10) / 10;
+    }
+
+    // --- Total time tracked (hours) ---
+    let totalTrackedMs = 0;
+    timeEntries.forEach(te => {
+      if (te.startTime && te.endTime) {
+        totalTrackedMs += new Date(te.endTime) - new Date(te.startTime);
+      }
+    });
+    const totalTrackedHours = Math.round((totalTrackedMs / (1000 * 60 * 60)) * 10) / 10;
+
+    // --- Per-member KPI ---
+    const memberMap = {};
     tasks.forEach(t => {
       const name = t.assigneeId ? t.assigneeId.name : 'Unassigned';
-      userMap[name] = (userMap[name] || 0) + 1;
+      const id = t.assigneeId ? t.assigneeId._id.toString() : 'unassigned';
+      if (!memberMap[id]) {
+        memberMap[id] = { name, total: 0, done: 0, overdue: 0, trackedMs: 0 };
+      }
+      memberMap[id].total++;
+      if (t.status === 'DONE') memberMap[id].done++;
+      if (t.dueDate && new Date(t.dueDate) < now && t.status !== 'DONE') memberMap[id].overdue++;
     });
-    const byUser = Object.keys(userMap).map(key => ({ name: key, taskCount: userMap[key] }));
-    const now = new Date();
-    const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < now && t.status !== 'DONE').length;
-    res.json({ totalTasks, byStatus, byUser, overdue });
+    // Add time tracking per member
+    timeEntries.forEach(te => {
+      if (te.userId && te.startTime && te.endTime) {
+        const id = te.userId._id.toString();
+        if (memberMap[id]) {
+          memberMap[id].trackedMs += new Date(te.endTime) - new Date(te.startTime);
+        }
+      }
+    });
+    const byUser = Object.values(memberMap).map(m => ({
+      name: m.name,
+      taskCount: m.total,
+      completed: m.done,
+      overdue: m.overdue,
+      completionRate: m.total > 0 ? Math.round((m.done / m.total) * 100) : 0,
+      hoursTracked: Math.round((m.trackedMs / (1000 * 60 * 60)) * 10) / 10,
+    }));
+
+    // --- Weekly trend (last 8 weeks) ---
+    const weeklyTrend = [];
+    for (let i = 7; i >= 0; i--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - (i * 7));
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+
+      const created = tasks.filter(t => {
+        const d = new Date(t.createdAt);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+
+      const completed = tasks.filter(t => {
+        if (t.status !== 'DONE' || !t.updatedAt) return false;
+        const d = new Date(t.updatedAt);
+        return d >= weekStart && d < weekEnd;
+      }).length;
+
+      const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      weeklyTrend.push({ week: label, created, completed });
+    }
+
+    res.json({
+      totalTasks,
+      byStatus,
+      byPriority,
+      byUser,
+      overdue,
+      completionRate,
+      avgCompletionDays,
+      totalTrackedHours,
+      weeklyTrend,
+    });
   } catch (error) { next(error); }
 });
 
@@ -217,20 +363,32 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openRouterApiKey) return res.status(500).json({ error: 'AI features are not configured.' });
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${openRouterApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct:free',
-        messages: [
-          { role: 'system', content: `You are the TaskForge AI Assistant. You help users manage their projects.\nThe user is ${req.user.name}.\nHere is the current project status context:\n${summary}\nAnswer the user's question concisely and helpfully.` },
-          { role: 'user', content: message }
-        ]
-      })
-    });
-    if (!response.ok) throw new Error('Failed to generate response from OpenRouter');
-    const data = await response.json();
-    res.json({ reply: data.choices[0].message.content });
+    let replyText = '';
+    let lastError;
+    const systemPrompt = `You are the TaskForge AI Assistant. You help users manage their projects.\nThe user is ${req.user.name}.\nHere is the current project status context:\n${summary}\nAnswer the user's question concisely and helpfully.`;
+
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        console.log(`[Project Chat] Trying model: ${model}`);
+        const data = await callOpenRouterAPI(openRouterApiKey, model, systemPrompt, message);
+        replyText = data.choices?.[0]?.message?.content || '';
+        if (replyText.trim()) {
+          console.log(`[Project Chat] Succeeded with model: ${model}`);
+          break;
+        } else {
+          lastError = new Error('Empty response from model');
+        }
+      } catch (err) {
+        console.error(`[Project Chat] Model ${model} failed:`, err.message);
+        lastError = err;
+      }
+    }
+
+    if (!replyText.trim()) {
+      replyText = `I apologize, but my AI core is currently unresponsive. Here is a quick status summary of this workspace:\n\n${summary}`;
+    }
+
+    res.json({ reply: replyText });
   } catch (error) { next(error); }
 });
 

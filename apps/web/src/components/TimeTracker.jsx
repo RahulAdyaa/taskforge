@@ -98,13 +98,13 @@ export function TaskCardTimer({ taskId, projectId }) {
           <button
             onClick={(e) => { e.stopPropagation(); startMutation.mutate(); }}
             disabled={startMutation.isPending}
-            className="w-5 h-5 rounded bg-[#E8E4DD] flex items-center justify-center hover:bg-black hover:text-white transition-colors group"
+            className="w-5 h-5 rounded bg-[#E8E4DD] dark:bg-[#2A2A2A] text-black dark:text-white flex items-center justify-center hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors group"
             title="Start timer"
           >
             <Play className="w-2.5 h-2.5 fill-current" />
           </button>
           {totalLogged > 0 && (
-            <span className="font-mono text-[10px] text-black/40 tabular-nums">
+            <span className="font-mono text-[10px] text-black/40 dark:text-white/40 tabular-nums">
               {formatDuration(totalLogged)}
             </span>
           )}
@@ -190,21 +190,21 @@ export function TaskTimeTracker({ taskId, projectId }) {
   }
 
   return (
-    <div className="border border-[#E8E4DD] rounded-xl overflow-hidden">
+    <div className="border border-[#E8E4DD] dark:border-[#2A2A2A] rounded-xl overflow-hidden">
       {/* Timer Header */}
-      <div className={`p-4 flex items-center justify-between ${isRunning ? 'bg-[#E63B2E]/5 border-b border-[#E63B2E]/10' : 'bg-[#F5F3EE]'}`}>
+      <div className={`p-4 flex items-center justify-between ${isRunning ? 'bg-[#E63B2E]/5 border-b border-[#E63B2E]/10' : 'bg-[#F5F3EE] dark:bg-[#1C1C1C] border-b border-[#E8E4DD] dark:border-[#2A2A2A]'}`}>
         <div className="flex items-center gap-2">
-          <Clock className={`w-4 h-4 ${isRunning ? 'text-[#E63B2E]' : 'text-black/40'}`} />
-          <span className="font-mono text-xs uppercase tracking-widest text-black/50 font-bold">Time Tracker</span>
+          <Clock className={`w-4 h-4 ${isRunning ? 'text-[#E63B2E]' : 'text-black/40 dark:text-white/40'}`} />
+          <span className="font-mono text-xs uppercase tracking-widest text-black/50 dark:text-white/50 font-bold">Time Tracker</span>
         </div>
-        <div className="font-mono text-xs text-black/40">
-          Total: <strong className="text-black">{formatDuration(totalLogged + (isRunning ? elapsed : 0))}</strong>
+        <div className="font-mono text-xs text-black/40 dark:text-white/40">
+          Total: <strong className="text-black dark:text-white">{formatDuration(totalLogged + (isRunning ? elapsed : 0))}</strong>
         </div>
       </div>
 
       {/* Live Timer Display */}
-      <div className="p-6 text-center">
-        <div className={`font-display text-5xl tabular-nums mb-4 ${isRunning ? 'text-[#E63B2E]' : 'text-black/20'}`}>
+      <div className="p-6 text-center bg-white dark:bg-[#141414]">
+        <div className={`font-display text-5xl tabular-nums mb-4 ${isRunning ? 'text-[#E63B2E]' : 'text-black/20 dark:text-white/20'}`}>
           {isRunning ? formatDuration(elapsed) : '0m 00s'}
         </div>
 
@@ -221,9 +221,9 @@ export function TaskTimeTracker({ taskId, projectId }) {
           <button
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
-            className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-black dark:bg-[#E8E4DD] text-white dark:text-black px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] dark:hover:bg-[#E63B2E] dark:hover:text-white transition-colors disabled:opacity-50"
           >
-            <Play className="w-4 h-4 fill-white" />
+            <Play className="w-4 h-4 fill-current dark:fill-black" />
             Start Timer
           </button>
         )}
@@ -231,8 +231,8 @@ export function TaskTimeTracker({ taskId, projectId }) {
 
       {/* Recent Sessions */}
       {timerData?.entries?.length > 0 && (
-        <div className="border-t border-[#E8E4DD] p-4">
-          <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 font-bold mb-3">
+        <div className="border-t border-[#E8E4DD] dark:border-[#2A2A2A] p-4 bg-white dark:bg-[#141414]">
+          <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 dark:text-white/40 font-bold mb-3">
             Recent Sessions
           </div>
           <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -244,12 +244,12 @@ export function TaskTimeTracker({ taskId, projectId }) {
                 return (
                   <div key={entry.id} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-black/40">
+                      <span className="font-mono text-black/40 dark:text-white/40">
                         {new Date(entry.startTime).toLocaleDateString()}
                       </span>
-                      <span className="text-black/60">{entry.user.name}</span>
+                      <span className="text-black/60 dark:text-white/60">{entry.user.name}</span>
                     </div>
-                    <span className="font-mono font-bold text-black">{formatDuration(dur)}</span>
+                    <span className="font-mono font-bold text-black dark:text-white">{formatDuration(dur)}</span>
                   </div>
                 );
               })}

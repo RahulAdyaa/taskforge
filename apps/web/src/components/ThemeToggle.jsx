@@ -8,7 +8,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative w-14 h-7 rounded-full border border-[#E8E4DD] dark:border-[#333] bg-[#F5F3EE] dark:bg-[#1A1A1A] transition-colors duration-300 flex items-center px-1 group"
+      className="relative w-14 h-7 rounded-full border border-neutral-300 dark:border-[#333] bg-[#F5F3EE] dark:bg-[#1A1A1A] transition-colors duration-300 flex items-center px-1 group"
       title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
     >
       {/* Sliding dot */}

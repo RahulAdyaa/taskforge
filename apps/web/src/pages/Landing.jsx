@@ -134,7 +134,7 @@ const Hero = () => {
           TASKFORGE — PRECISION TASK ENGINE
         </div>
         <h1 className="hero-text font-sans font-extrabold text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-tight mb-2 text-white">Command the</h1>
-        <h2 className="hero-text font-display italic text-7xl md:text-9xl lg:text-[11rem] leading-none mb-12 text-white drop-shadow-md">Workflow.</h2>
+        <h2 className="hero-text font-cursive italic text-7xl md:text-9xl lg:text-[11rem] leading-none mb-12 text-white drop-shadow-md">Workflow.</h2>
         <Link to="/signup" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
           <span className="relative z-10">Start Managing Free</span>
         </Link>
@@ -197,7 +197,7 @@ const FeatureCards = () => {
             ))}
           </div>
           <div>
-            <h3 className="font-display italic text-3xl mb-2">Diagnostic Shuffler</h3>
+            <h3 className="font-cursive italic text-3xl mb-2">Diagnostic Shuffler</h3>
             <p className="font-mono text-xs text-black/60">Real-time task visibility array.</p>
           </div>
         </div>
@@ -210,7 +210,7 @@ const FeatureCards = () => {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-signal-red animate-pulse"></div>
-              <h3 className="font-display italic text-3xl">Telemetry Feed</h3>
+              <h3 className="font-cursive italic text-3xl">Telemetry Feed</h3>
             </div>
             <p className="font-mono text-xs text-black/60">Role-based access telemetry.</p>
           </div>
@@ -228,7 +228,7 @@ const FeatureCards = () => {
           </div>
           <MousePointer2 className="absolute text-black w-6 h-6 z-10 transition-all duration-1000 ease-in-out group-hover:translate-x-[120px] group-hover:-translate-y-[80px] top-1/2 left-1/4" />
           <div>
-            <h3 className="font-display italic text-3xl mb-2">Cursor Protocol</h3>
+            <h3 className="font-cursive italic text-3xl mb-2">Cursor Protocol</h3>
             <p className="font-mono text-xs text-black/60">Smart deadline allocation.</p>
           </div>
         </div>
@@ -267,7 +267,7 @@ const Philosophy = () => {
         <p className="font-mono text-sm md:text-base text-white/50 mb-8 tracking-widest uppercase">
           {"Most tools focus on: adding features.".split(' ').map((word, i) => <span key={i} className="phil-word inline-block mr-2">{word}</span>)}
         </p>
-        <h2 className="font-display italic text-5xl md:text-7xl lg:text-9xl leading-tight">
+        <h2 className="font-cursive italic text-5xl md:text-7xl lg:text-9xl leading-tight">
           {"We focus on: ".split(' ').map((word, i) => <span key={i} className="phil-word inline-block mr-4">{word}</span>)}
           <span className="phil-word inline-block text-[#FF7066]">clarity.</span>
         </h2>
@@ -278,8 +278,8 @@ const Philosophy = () => {
 
 const Protocol = () => {
   const cardsData = [
-    { num: '01', title: 'CREATE', desc: 'Spin up a project in seconds. Invite your team by email.', visual: <div className="w-64 h-64 border border-black rounded-full flex items-center justify-center animate-[spin_10s_linear_infinite]"><div className="w-48 h-48 border border-black rounded-full flex items-center justify-center"><div className="w-32 h-32 border border-signal-red rounded-full"></div></div></div> },
-    { num: '02', title: 'ASSIGN', desc: 'Drag tasks to teammates. Set priority and deadlines.', visual: <div className="relative w-64 h-64 border border-black grid grid-cols-4 grid-rows-4 gap-4 p-4"><div className="absolute top-0 left-0 w-full h-1 bg-signal-red animate-[bounce_2s_infinite]"></div>{[...Array(16)].map((_,i)=><div key={i} className="bg-black/10 rounded-sm"></div>)}</div> },
+    { num: '01', title: 'CREATE', desc: 'Spin up a project in seconds. Invite your team by email.', visual: <div className="w-64 h-64 border border-black dark:border-white/20 rounded-full flex items-center justify-center animate-[spin_10s_linear_infinite]"><div className="w-48 h-48 border border-black dark:border-white/20 rounded-full flex items-center justify-center"><div className="w-32 h-32 border border-signal-red rounded-full"></div></div></div> },
+    { num: '02', title: 'ASSIGN', desc: 'Drag tasks to teammates. Set priority and deadlines.', visual: <div className="relative w-64 h-64 border border-black dark:border-white/20 grid grid-cols-4 grid-rows-4 gap-4 p-4"><div className="absolute top-0 left-0 w-full h-1 bg-signal-red animate-[bounce_2s_infinite]"></div>{[...Array(16)].map((_,i)=><div key={i} className="bg-black/10 dark:bg-white/10 rounded-sm"></div>)}</div> },
     { num: '03', title: 'TRACK', desc: 'Live status board. Know exactly what\'s done and what\'s not.', visual: <svg className="w-64 h-32 stroke-signal-red stroke-2 fill-none animate-pulse" viewBox="0 0 100 50"><path d="M0 25 L20 25 L30 10 L40 40 L50 25 L100 25" /></svg> }
   ];
 
@@ -287,7 +287,7 @@ const Protocol = () => {
     <section className="relative bg-off-white py-20">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="font-display italic text-5xl md:text-6xl mb-4">How It Works</h2>
+          <h2 className="font-cursive italic text-5xl md:text-6xl mb-4">How It Works</h2>
           <p className="font-mono text-black/50 text-sm tracking-widest uppercase">Three steps to precision workflow</p>
         </div>
         <div className="space-y-12">
@@ -297,7 +297,7 @@ const Protocol = () => {
                 <div className="flex-1 flex justify-center">{card.visual}</div>
                 <div className="flex-1">
                   <div className="font-mono text-signal-red text-xl mb-4">{card.num} / {card.title}</div>
-                  <h2 className="font-display italic text-5xl md:text-7xl mb-6">{card.title}.</h2>
+                  <h2 className="font-cursive italic text-5xl md:text-7xl mb-6">{card.title}.</h2>
                   <p className="font-sans text-xl md:text-2xl text-black/70 max-w-md leading-relaxed">{card.desc}</p>
                 </div>
               </div>
@@ -313,7 +313,7 @@ const Pricing = () => {
   return (
     <section id="pricing" className="py-32 px-6 max-w-7xl mx-auto">
       <div className="text-center mb-20">
-        <h2 className="font-display italic text-6xl mb-4 dark:text-white">Access Protocol</h2>
+        <h2 className="font-cursive italic text-6xl mb-4 dark:text-white">Access Protocol</h2>
         <p className="font-mono text-black/60 dark:text-zinc-400">Select your operational tier.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">

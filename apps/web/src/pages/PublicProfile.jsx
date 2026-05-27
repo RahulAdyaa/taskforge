@@ -109,7 +109,7 @@ Generated via TaskForge
     return (
       <div className="min-h-screen bg-off-white dark:bg-[#0D0D0D] flex flex-col items-center justify-center p-6 text-center">
         <ShieldAlert className="w-16 h-16 text-signal-red mb-4" />
-        <h2 className="font-display italic text-2xl mb-2">Profile Confidential</h2>
+        <h2 className="font-display font-extrabold text-2xl tracking-tight mb-2">Profile Confidential</h2>
         <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 max-w-sm mb-6">
           This user profile directory is either set to Private or does not exist.
         </p>
@@ -169,7 +169,7 @@ Generated via TaskForge
           </div>
 
           <div className="mt-4 mb-8">
-            <h1 className="font-display italic text-4xl mb-1">{profile.name}</h1>
+            <h1 className="font-display font-extrabold text-4xl tracking-tight mb-1">{profile.name}</h1>
             <p className="font-mono text-xs text-var-accent font-bold mb-3">@{profile.username}</p>
             {profile.headline && (
               <p className="font-sans font-bold text-base text-black/75 dark:text-[#E8E4DD]/75 mb-4">
@@ -196,7 +196,7 @@ Generated via TaskForge
           {/* Socials & Portfolios */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 border-t border-[#E8E4DD] dark:border-[#2A2A2A] pt-6">
             <div>
-              <h3 className="font-sans font-bold text-sm mb-4 font-display italic">Connected Networks</h3>
+              <h3 className="font-display font-bold text-sm mb-4">Connected Networks</h3>
               <div className="space-y-3">
                 {profile.githubUrl && (
                   <a href={profile.githubUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 text-sm text-black/60 dark:text-[#E8E4DD]/60 hover:text-black dark:hover:text-white transition-colors">
@@ -229,7 +229,7 @@ Generated via TaskForge
             </div>
 
             <div>
-              <h3 className="font-sans font-bold text-sm mb-4 font-display italic">Certifications</h3>
+              <h3 className="font-display font-bold text-sm mb-4">Certifications</h3>
               <div className="space-y-2">
                 {profile.certifications?.map((c, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-xs font-sans">

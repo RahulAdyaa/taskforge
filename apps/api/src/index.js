@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // Trigger nodemon restart after freeing port 3001
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');

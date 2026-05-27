@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const projectSchema = new mongoose.Schema(
   {
@@ -13,8 +14,7 @@ const projectSchema = new mongoose.Schema(
     },
     inviteToken: {
       type: String,
-      default: null,
-      sparse: true,
+      default: () => crypto.randomBytes(16).toString('hex'),
       unique: true,
     },
   },

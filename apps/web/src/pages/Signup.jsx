@@ -7,15 +7,26 @@ import { useAuthStore } from '../store/authStore';
 
 export default function Signup() {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const setAuth = useAuthStore(state => state.setAuth);
 
+  const handleUsernameChange = (e) => {
+    // Force lowercase, only allow alphanumeric and underscores
+    const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setUsername(val);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (username.length < 3) {
+      toast.error('Username must be at least 3 characters.');
+      return;
+    }
     try {
-      const { data } = await api.post('/auth/signup', { name, email, password });
+      const { data } = await api.post('/auth/signup', { name, username, email, password });
       setAuth(data.user, data.accessToken);
       toast.success('Identity registered.');
       navigate('/app');
@@ -44,10 +55,10 @@ export default function Signup() {
       <Link to="/" className="font-display text-2xl font-bold mb-12 absolute top-8 left-8">TASKFORGE</Link>
       
       <div className="w-full max-w-md bg-[#F5F3EE] p-10 rounded-[2rem] border border-[#E8E4DD] shadow-xl">
-        <h2 className="font-display italic text-4xl mb-2 text-center">New Identity</h2>
+        <h2 className="font-display font-extrabold text-4xl tracking-tight mb-2 text-center">New Identity</h2>
         <p className="font-mono text-xs text-black/50 text-center mb-8 uppercase tracking-widest">Register in system</p>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block font-mono text-sm mb-2">Designation (Name)</label>
             <input 
@@ -57,6 +68,24 @@ export default function Signup() {
               className="w-full bg-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red transition-colors"
               required 
             />
+          </div>
+          <div>
+            <label className="block font-mono text-sm mb-2">Username</label>
+            <div className="relative">
+              <span className="absolute left-4 top-3 text-black/40 font-mono text-sm">@</span>
+              <input 
+                type="text" 
+                value={username}
+                onChange={handleUsernameChange}
+                placeholder="your_handle"
+                maxLength={30}
+                className="w-full bg-white border border-[#E8E4DD] pl-9 pr-4 py-3 rounded-xl font-mono text-sm focus:outline-none focus:border-signal-red transition-colors"
+                required 
+              />
+            </div>
+            {username && username.length < 3 && (
+              <p className="text-xs text-signal-red mt-1 font-mono">Min 3 characters</p>
+            )}
           </div>
           <div>
             <label className="block font-mono text-sm mb-2">Email Identity</label>

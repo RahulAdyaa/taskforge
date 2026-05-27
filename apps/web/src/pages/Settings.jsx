@@ -61,7 +61,7 @@ export default function Settings() {
 
       <main className="max-w-4xl mx-auto p-12">
         <div className="bg-white p-10 rounded-[2rem] border border-[#E8E4DD] shadow-xl mb-10">
-          <h2 className="font-display italic text-3xl mb-2">Access Control</h2>
+          <h2 className="font-display font-extrabold text-4xl tracking-tight mb-2">Access Control</h2>
           <p className="font-mono text-xs text-black/50 mb-8 uppercase tracking-widest">Manage project personnel</p>
 
           <form onSubmit={handleAddMember} className="flex gap-4 mb-12">
