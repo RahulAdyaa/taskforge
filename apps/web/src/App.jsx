@@ -10,6 +10,8 @@ import AccountSettings from './pages/AccountSettings';
 import MyTasks from './pages/MyTasks';
 import PublicProfile from './pages/PublicProfile';
 import ForgotPassword from './pages/ForgotPassword';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import { useAuthStore } from './store/authStore';
 import api from './lib/axios';
 
@@ -59,6 +61,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           
           <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
