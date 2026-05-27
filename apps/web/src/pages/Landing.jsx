@@ -51,7 +51,7 @@ const Hero = () => {
     <section ref={containerRef} className="relative h-[100dvh] w-full overflow-hidden flex items-end p-12 md:p-24">
       <div className="absolute inset-0 bg-black">
         <img 
-          src="https://images.unsplash.com/photo-1541888081622-263309a47a16?q=80&w=2070&auto=format&fit=crop" 
+          src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop" 
           alt="Concrete structure" 
           className="w-full h-full object-cover opacity-60 mix-blend-luminosity"
         />
