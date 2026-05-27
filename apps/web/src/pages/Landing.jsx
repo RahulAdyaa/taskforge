@@ -134,7 +134,7 @@ const Hero = () => {
           TASKFORGE — PRECISION TASK ENGINE
         </div>
         <h1 className="hero-text font-sans font-extrabold text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-tight mb-2 text-white">Command the</h1>
-        <h2 className="hero-text font-display italic text-7xl md:text-9xl lg:text-[11rem] leading-tight py-3 mb-8 bg-gradient-to-r from-white via-[#E8E4DD] to-white/60 bg-clip-text text-transparent drop-shadow-sm">Workflow.</h2>
+        <h2 className="hero-text font-display italic text-7xl md:text-9xl lg:text-[11rem] leading-none mb-12 text-white drop-shadow-md">Workflow.</h2>
         <Link to="/signup" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
           <span className="relative z-10">Start Managing Free</span>
         </Link>
