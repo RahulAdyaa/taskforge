@@ -148,10 +148,10 @@ const FeatureCards = () => {
 
         {/* Card 3 */}
         <div className="bg-[#F5F3EE] rounded-[2rem] p-8 border border-[#E8E4DD] shadow-xl h-96 flex flex-col justify-between relative group">
-          <div className="grid grid-cols-7 gap-1 h-32 mt-8">
+          <div className="grid grid-cols-7 gap-1 h-32 mt-8" spellCheck="false">
             {['S','M','T','W','T','F','S'].map((d, i) => (
-              <div key={i} className="flex flex-col gap-2 items-center">
-                <span className="font-mono text-xs text-black/40">{d}</span>
+              <div key={i} className="flex flex-col gap-2 items-center" spellCheck="false">
+                <span className="font-mono text-xs text-black/40" spellCheck="false">{d}</span>
                 <div className={`w-8 h-8 rounded-lg border border-[#E8E4DD] ${i===3 ? 'bg-signal-red/10 border-signal-red' : 'bg-white'}`}></div>
               </div>
             ))}
