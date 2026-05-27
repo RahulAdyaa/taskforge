@@ -8,26 +8,96 @@ gsap.registerPlugin(ScrollTrigger);
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState('');
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
+
+      // Scroll Spy calculation: matches active section when 75% down the page
+      const sections = ['features', 'philosophy', 'pricing'];
+      const scrollPosition = window.scrollY + window.innerHeight * 0.75;
+
+      let currentSection = '';
+      for (const sectionId of sections) {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            currentSection = sectionId;
+          }
+        }
+      }
+      setActiveSection(currentSection);
     };
+
     window.addEventListener('scroll', handleScroll);
+    handleScroll(); // initial load execution
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const handleSmoothScroll = (e, targetId) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.pushState(null, null, `#${targetId}`);
+    }
+  };
+
   return (
     <nav className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 rounded-full px-8 py-4 flex items-center gap-12 ${
-      scrolled ? 'bg-[#F5F3EE]/60 backdrop-blur-xl border border-[#E8E4DD] shadow-lg text-black' : 'bg-transparent text-white'
+      scrolled 
+        ? 'bg-[#F5F3EE]/60 backdrop-blur-xl border border-[#E8E4DD] dark:bg-black/60 dark:border-zinc-800/80 shadow-lg text-black dark:text-white' 
+        : 'bg-transparent text-white'
     }`}>
       <div className="font-display text-xl tracking-tight font-bold">TASKFORGE</div>
       <div className="flex gap-8 font-sans text-sm font-medium">
-        <a href="#features" className="hover:text-signal-red transition-colors">Features</a>
-        <a href="#philosophy" className="hover:text-signal-red transition-colors">Philosophy</a>
-        <a href="#pricing" className="hover:text-signal-red transition-colors">Pricing</a>
+        <a 
+          href="#features" 
+          onClick={(e) => handleSmoothScroll(e, 'features')}
+          className={`transition-colors relative py-1 ${
+            activeSection === 'features' 
+              ? 'text-signal-red font-semibold' 
+              : scrolled ? 'text-black/70 dark:text-white/70 hover:text-signal-red' : 'text-white/80 hover:text-white'
+          }`}
+        >
+          Features
+          {activeSection === 'features' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-signal-red rounded-full animate-pulse" />
+          )}
+        </a>
+        <a 
+          href="#philosophy" 
+          onClick={(e) => handleSmoothScroll(e, 'philosophy')}
+          className={`transition-colors relative py-1 ${
+            activeSection === 'philosophy' 
+              ? 'text-signal-red font-semibold' 
+              : scrolled ? 'text-black/70 dark:text-white/70 hover:text-signal-red' : 'text-white/80 hover:text-white'
+          }`}
+        >
+          Philosophy
+          {activeSection === 'philosophy' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-signal-red rounded-full animate-pulse" />
+          )}
+        </a>
+        <a 
+          href="#pricing" 
+          onClick={(e) => handleSmoothScroll(e, 'pricing')}
+          className={`transition-colors relative py-1 ${
+            activeSection === 'pricing' 
+              ? 'text-signal-red font-semibold' 
+              : scrolled ? 'text-black/70 dark:text-white/70 hover:text-signal-red' : 'text-white/80 hover:text-white'
+          }`}
+        >
+          Pricing
+          {activeSection === 'pricing' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-signal-red rounded-full animate-pulse" />
+          )}
+        </a>
       </div>
-      <Link to="/login" className="btn-brutal bg-black text-white px-6 py-2 rounded-full font-sans text-sm font-medium">
+      <Link to="/login" className="btn-brutal bg-black dark:bg-zinc-100 text-white dark:text-black px-6 py-2 rounded-full font-sans text-sm font-medium">
         <span className="relative z-10">Login</span>
       </Link>
     </nav>

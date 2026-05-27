@@ -5,6 +5,9 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     background-color: #FAF9F6 !important; /* Premium Alabaster White */
     color: #18181B !important; /* Deep Graphite */
