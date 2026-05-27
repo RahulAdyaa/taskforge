@@ -243,20 +243,20 @@ const Pricing = () => {
   return (
     <section id="pricing" className="py-32 px-6 max-w-7xl mx-auto">
       <div className="text-center mb-20">
-        <h2 className="font-display italic text-6xl mb-4">Access Protocol</h2>
-        <p className="font-mono text-black/60">Select your operational tier.</p>
+        <h2 className="font-display italic text-6xl mb-4 dark:text-white">Access Protocol</h2>
+        <p className="font-mono text-black/60 dark:text-zinc-400">Select your operational tier.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
         {/* Tier 1 */}
-        <div className="bg-[#F5F3EE] rounded-[2rem] p-10 border border-[#E8E4DD] shadow-lg">
+        <div className="bg-[#F5F3EE] dark:bg-[#0F0F12] rounded-[2rem] p-10 border border-[#E8E4DD] dark:border-zinc-800/80 shadow-lg text-black dark:text-zinc-100">
           <h3 className="font-sans font-bold text-2xl mb-2">Essential</h3>
           <div className="font-mono text-4xl mb-8">Free</div>
-          <ul className="space-y-4 font-sans text-black/70 mb-10">
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> 3 Projects</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> 5 Members</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> Basic Dashboard</li>
+          <ul className="space-y-4 font-sans text-black/70 dark:text-zinc-400 mb-10">
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> 3 Projects</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> 5 Members</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> Basic Dashboard</li>
           </ul>
-          <Link to="/signup" className="btn-brutal block w-full py-4 text-center border border-black rounded-full font-medium">
+          <Link to="/signup" className="btn-brutal block w-full py-4 text-center border border-black dark:border-zinc-700 rounded-full font-medium dark:text-zinc-200">
             <span className="relative z-10">Select Plan</span>
           </Link>
         </div>
@@ -276,15 +276,15 @@ const Pricing = () => {
         </div>
 
         {/* Tier 3 */}
-        <div className="bg-[#F5F3EE] rounded-[2rem] p-10 border border-[#E8E4DD] shadow-lg">
+        <div className="bg-[#F5F3EE] dark:bg-[#0F0F12] rounded-[2rem] p-10 border border-[#E8E4DD] dark:border-zinc-800/80 shadow-lg text-black dark:text-zinc-100">
           <h3 className="font-sans font-bold text-2xl mb-2">Enterprise</h3>
           <div className="font-mono text-4xl mb-8">Custom</div>
-          <ul className="space-y-4 font-sans text-black/70 mb-10">
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> Unlimited Everything</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> SSO Integration</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black" /> Priority Support</li>
+          <ul className="space-y-4 font-sans text-black/70 dark:text-zinc-400 mb-10">
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> Unlimited Everything</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> SSO Integration</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-black dark:text-zinc-300" /> Priority Support</li>
           </ul>
-          <a href="mailto:contact@taskforge.com" className="btn-brutal block w-full py-4 text-center border border-black rounded-full font-medium">
+          <a href="mailto:contact@taskforge.com" className="btn-brutal block w-full py-4 text-center border border-black dark:border-zinc-700 rounded-full font-medium dark:text-zinc-200">
             <span className="relative z-10">Contact Sales</span>
           </a>
         </div>
