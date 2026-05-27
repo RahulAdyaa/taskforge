@@ -8,10 +8,12 @@ const mongoose = require('mongoose');
  */
 let isConnected = false;
 let retryTimer = null;
+let lastDisconnectLog = 0; // throttle disconnect spam
 
 const MAX_RETRIES = Infinity; // keep trying forever in dev
 const INITIAL_DELAY_MS = 3000; // 3 seconds
 const MAX_DELAY_MS = 60000; // cap at 60 seconds
+const LOG_THROTTLE_MS = 30000; // only log disconnect/reconnect every 30s
 
 const connectDB = async (attempt = 1) => {
   if (isConnected) {
@@ -36,12 +38,14 @@ const connectDB = async (attempt = 1) => {
 
   try {
     await mongoose.connect(uri, {
-      // Connection pool settings
-      maxPoolSize: process.env.VERCEL ? 5 : 10,
-      minPoolSize: 1,
+      // Connection pool settings — keep it lean to avoid idle-socket churn
+      maxPoolSize: process.env.VERCEL ? 3 : 5,
+      minPoolSize: 0,
+      maxIdleTimeMS: 30000,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
-      family: 4, 
+      heartbeatFrequencyMS: 30000,
+      family: 4,
     });
 
     isConnected = true;
@@ -83,12 +87,20 @@ const connectDB = async (attempt = 1) => {
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️  MongoDB disconnected. Will auto-reconnect...');
+      const now = Date.now();
+      if (now - lastDisconnectLog > LOG_THROTTLE_MS) {
+        console.warn('⚠️  MongoDB disconnected. Will auto-reconnect...');
+        lastDisconnectLog = now;
+      }
       isConnected = false;
     });
 
     mongoose.connection.on('reconnected', () => {
-      console.log('✅ MongoDB reconnected');
+      const now = Date.now();
+      if (now - lastDisconnectLog > LOG_THROTTLE_MS) {
+        console.log('✅ MongoDB reconnected');
+        lastDisconnectLog = now;
+      }
       isConnected = true;
     });
   }
@@ -111,3 +123,4 @@ const requireDB = (req, res, next) => {
 
 module.exports = connectDB;
 module.exports.requireDB = requireDB;
+
