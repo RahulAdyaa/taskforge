@@ -39,7 +39,8 @@ export default function ChatWidget() {
       return data.reply;
     },
     onSuccess: (reply) => {
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const cleaned = reply.replace(/<\/?(?:assistant|system|user|thought|chat|im_end|assistant_response)>/gi, '').trim();
+      setMessages(prev => [...prev, { role: 'assistant', content: cleaned }]);
     },
     onError: () => {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Oops! I encountered an error. Please try again.' }]);
@@ -90,8 +91,16 @@ export default function ChatWidget() {
       <div className="flex-1 overflow-y-auto p-4 bg-[#F5F3EE] flex flex-col gap-4">
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-black text-white rounded-tr-sm' : 'bg-white border border-[#E8E4DD] shadow-sm rounded-tl-sm'}`}>
-              <div className={`prose prose-sm font-sans ${msg.role === 'user' ? 'prose-invert' : ''}`}>
+            <div className={`max-w-[85%] rounded-2xl p-3.5 ${
+              msg.role === 'user' 
+                ? 'bg-black text-white rounded-tr-sm shadow-md' 
+                : 'bg-white border border-[#E8E4DD] shadow-md rounded-tl-sm'
+            }`}>
+              <div className={`font-sans text-sm leading-relaxed ${
+                msg.role === 'user'
+                  ? 'text-white/95 [&_a]:text-white [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold'
+                  : 'text-gray-800 [&_a]:text-red-500 [&_a]:underline [&_a]:hover:text-red-600 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1'
+              }`}>
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>

@@ -760,6 +760,8 @@ Answer the user's question concisely, naturally, and helpfully in natural langua
 
     if (!replyText.trim()) {
       replyText = `I apologize, but my AI core is currently unresponsive. I am built to help you with projects, setup, settings, and other features of TaskForge. Please try again in a few moments.`;
+    } else {
+      replyText = replyText.replace(/<\/?(?:assistant|system|user|thought|chat|im_end|assistant_response)>/gi, '').trim();
     }
 
     res.json({ reply: replyText });

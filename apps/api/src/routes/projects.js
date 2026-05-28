@@ -447,6 +447,8 @@ Answer the user's question concisely, naturally, and helpfully in natural langua
 
     if (!replyText.trim()) {
       replyText = `I apologize, but my AI core is currently unresponsive. Here is a quick status summary of this workspace:\n\n${summary}`;
+    } else {
+      replyText = replyText.replace(/<\/?(?:assistant|system|user|thought|chat|im_end|assistant_response)>/gi, '').trim();
     }
 
     res.json({ reply: replyText });
