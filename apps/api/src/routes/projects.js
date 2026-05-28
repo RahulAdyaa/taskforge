@@ -364,31 +364,52 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
     if (!openRouterApiKey) return res.status(500).json({ error: 'AI features are not configured.' });
 
     const TASKFORGE_KB = `
-TaskForge User Guide & Help Documentation:
+TaskForge User Guide, Help Documentation & Feature Reference:
+
 1. How to create a project:
    - Go to the "All Projects" dashboard page (/app/dashboard or /app).
    - Click the "New Project" button in the upper right.
    - Enter a Project Name and description, then click "Create Project".
-2. How to see the setup:
-   - Navigate into your project by clicking on it from the Dashboard.
-   - Click the "Board" tab to view the Kanban Board (TODO, IN PROGRESS, and DONE columns). Drag and drop cards to change status, or double-click to view task details.
-   - Click the "Terminal" tab to view live system logs and audit trail history of actions taken in the project.
-   - Click the "Stats" tab (if you are a project ADMIN) to see charts representing task status distribution, priority breakdown, weekly trends, and project health scores.
-3. How to change settings:
-   - Click "Settings" in the left sidebar to go to the Account Settings page (/app/settings).
-   - Use the settings tabs to configure:
-     - "Basic Profile": Display name, username handle, professional headline, bio, avatar, and cover banner.
-     - "Personal Info": Phone number, location, and timezone.
-     - "Social & Portfolio": GitHub, LinkedIn, portfolio link, resume, tech stack, experience level, and certifications.
-     - "Dashboard Stats": View dynamic Operational Analytics (total projects, estimated API calls, AI runs, and storage footprint) and monthly operational traffic graphs.
-     - "Preferences": Configure email preferences, push/email notifications, language, theme (switching between Light Mode and Dark Mode), default layout, and profile visibility (public or private).
-     - "Security & 2FA": Change your password, set up Two-Factor Authentication (2FA) with a QR code scanner, and monitor or revoke active sessions.
-     - "Developer SDK": Generate API keys and configure webhooks.
-     - "Workspaces": Manage project workspaces and invite new members by email.
-     - "Activity Log": View your personal audit log history.
-     - "AI Configuration": Customize your AI credits, Gemini AI model parameters (temperature, max tokens), and system prompts.
-     - "Billing & Plan": View active subscription plans (FREE, PRO, ENTERPRISE) and billing history.
-     - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
+   - Project cards display sequential sequential numbers (e.g. #1, #2) and dynamic member count badges.
+
+2. Project Views & Setup:
+   - Navigate into any project from your Dashboard.
+   - "Board" Tab (Kanban Board): Displays tasks in TODO, IN_PROGRESS, and DONE columns. You can drag and drop cards to change statuses, or double-click to view task details.
+   - "Terminal" Tab (System Log): Shows live logs and audit trails of all actions (task creation, updates, comments) performed in this project.
+   - "Stats" Tab (Admin Only): Visualizes project KPIs (Total Tasks, Completion Rate, Average Completion Days, Hours Tracked), project health scores, task status distribution, priority breakdowns, and weekly trends.
+
+3. Task Details & Time Tracker:
+   - Double-clicking a task on the Kanban board opens the Task Details modal.
+   - It displays the title, description, priority, status, assignee, due date, labels, comments, and attachments.
+   - "Time Tracker": Inside the Task Details panel, a built-in stopwatch lets you track time spent on a task. Use the Play/Pause buttons to start or stop the timer, which logs time entries in the task history.
+
+4. AI Standup:
+   - What it is: A tool that evaluates a user's cross-project activity over the last 24 hours (completed tasks, current queue, blockers, overdue items) and uses AI to generate a daily standup report.
+   - How to use: Click the "AI Standup" button in the left sidebar (visible on pages like "My Tasks" or "Settings") to open the standup modal. Click "Generate Standup Report" to run the analysis.
+   - Clickable Tasks: Task titles inside the generated report are rendered as clickable red links. Clicking them closes the modal and navigates you directly to that task's board page, auto-opening the Task Details modal.
+   - Options: You can copy the generated report to the clipboard or click "Regenerate" to fetch a fresh report.
+
+5. My Tasks Page:
+   - Accessed via "My Tasks" in the left sidebar (/app/my-tasks).
+   - Lists all tasks assigned to you across all workspaces. Clicking any task card navigates to the project view and auto-opens that task details modal.
+
+6. Command Palette:
+   - Access it by pressing Cmd+K (on macOS) or Ctrl+K (on Windows/Linux) anywhere on the app.
+   - Allows you to search tasks, quickly navigate pages, execute commands, or toggle themes.
+
+7. Account Settings (/app/settings):
+   - "Basic Profile": Display name, username handle, professional headline, bio, avatar, and cover banner.
+   - "Personal Info": Phone number, location, and timezone.
+   - "Social & Portfolio": GitHub, LinkedIn, portfolio link, resume, tech stack, experience level, and certifications.
+   - "Dashboard Stats": Displays dynamic Operational Analytics (total projects, estimated API calls, AI runs, and storage footprint) and monthly operational traffic graphs.
+   - "Preferences": Configure email preferences, push/email notifications, language, theme (switching between Light Mode and Dark Mode), default layout, and profile visibility (public or private).
+   - "Security & 2FA": Change your password, set up Two-Factor Authentication (2FA) with a QR code scanner, and monitor or revoke active sessions.
+   - "Developer SDK": Generate API keys and configure webhooks.
+   - "Workspaces": Manage project workspaces and invite new members by email.
+   - "Activity Log": View your personal audit log history.
+   - "AI Configuration": Customize your AI credits, Gemini AI model parameters (temperature, max tokens), and system prompts.
+   - "Billing & Plan": View active subscription plans (FREE, PRO, ENTERPRISE) and billing history.
+   - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
 `;
 
     let replyText = '';
@@ -401,7 +422,7 @@ ${summary}
 Here is the general TaskForge Help documentation for navigating/using the app:
 ${TASKFORGE_KB}
 
-Answer the user's question concisely, naturally, and helpfully using the provided documentation.`;
+Answer the user's question concisely, naturally, and helpfully in natural language using the provided documentation.`;
 
     for (const model of OPENROUTER_MODELS) {
       try {
