@@ -46,7 +46,8 @@ export default function Login() {
       toast.success('Google clearance granted.');
       navigate('/app');
     } catch (error) {
-      toast.error('Google authentication failed');
+      const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
+      toast.error(`Google authentication failed: ${errorMsg}`);
     }
   };
 
