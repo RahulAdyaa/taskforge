@@ -10,53 +10,14 @@ const validate = require('../middleware/validate');
 const router = express.Router();
 router.use(authenticate);
 
-// OpenRouter AI models (prioritizing premium/low-latency models)
+// OpenRouter AI models (guaranteed 100% free models)
 const OPENROUTER_MODELS = [
-  'google/gemini-2.5-flash',
-  'openai/gpt-4o-mini',
-  'meta-llama/llama-3.3-70b-instruct',
-  'qwen/qwen-2.5-coder-32b-instruct',
-  'openrouter/free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'qwen/qwen-2.5-coder-32b-instruct:free',
+  'google/gemma-2-9b-it:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+  'openrouter/free',
 ];
-
-const callGrokAPI = async (apiKey, systemPrompt, userPrompt) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
-
-  try {
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-2-1212',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1024,
-      }),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      const err = await response.text();
-      console.error(`Grok API error (grok-2-1212, HTTP ${response.status}):`, err);
-      throw new Error(`Model grok-2-1212 failed with HTTP ${response.status}`);
-    }
-    return response.json();
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
-  }
-};
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
   const controller = new AbortController();
@@ -400,10 +361,9 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
     let summary = "Project Status:\n";
     stats.forEach(s => { summary += `- ${s._id}: ${s.count} tasks\n`; });
 
-    const xaiApiKey = process.env.XAI_API_KEY;
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 
-    if (!xaiApiKey && !openRouterApiKey) {
+    if (!openRouterApiKey) {
       return res.status(500).json({ error: 'AI features are not configured.' });
     }
 
@@ -468,38 +428,20 @@ ${TASKFORGE_KB}
 
 Answer the user's question concisely, naturally, and helpfully in natural language using the provided documentation.`;
 
-    // 1. Try Grok direct first if key exists
-    if (xaiApiKey) {
+    for (const model of OPENROUTER_MODELS) {
       try {
-        console.log(`[Project Chat] Trying direct Grok (grok-2-1212)...`);
-        const data = await callGrokAPI(xaiApiKey, systemPrompt, message);
+        console.log(`[Project Chat] Trying model: ${model}`);
+        const data = await callOpenRouterAPI(openRouterApiKey, model, systemPrompt, message);
         replyText = data.choices?.[0]?.message?.content || '';
         if (replyText.trim()) {
-          console.log(`[Project Chat] Succeeded with Grok`);
+          console.log(`[Project Chat] Succeeded with model: ${model}`);
+          break;
+        } else {
+          lastError = new Error('Empty response from model');
         }
       } catch (err) {
-        console.error(`[Project Chat] Grok failed, falling back:`, err.message);
+        console.error(`[Project Chat] Model ${model} failed:`, err.message);
         lastError = err;
-      }
-    }
-
-    // 2. Fallback to OpenRouter chain
-    if (!replyText.trim() && openRouterApiKey) {
-      for (const model of OPENROUTER_MODELS) {
-        try {
-          console.log(`[Project Chat] Trying model: ${model}`);
-          const data = await callOpenRouterAPI(openRouterApiKey, model, systemPrompt, message);
-          replyText = data.choices?.[0]?.message?.content || '';
-          if (replyText.trim()) {
-            console.log(`[Project Chat] Succeeded with model: ${model}`);
-            break;
-          } else {
-            lastError = new Error('Empty response from model');
-          }
-        } catch (err) {
-          console.error(`[Project Chat] Model ${model} failed:`, err.message);
-          lastError = err;
-        }
       }
     }
 
