@@ -10,13 +10,11 @@ const validate = require('../middleware/validate');
 const router = express.Router();
 router.use(authenticate);
 
-// OpenRouter AI models (guaranteed 100% free models)
+// OpenRouter AI models (guaranteed 100% free models, prioritized for speed and uptime)
 const OPENROUTER_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2.5-coder-32b-instruct:free',
-  'google/gemma-2-9b-it:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
   'openrouter/free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
