@@ -158,7 +158,16 @@ export default function ProjectView() {
                 </div>
               )}
             </div>
-            <p className="font-mono text-xs text-black/50">PROJECT_ID: {id.slice(0,8)}</p>
+            <p 
+              onClick={() => {
+                navigator.clipboard.writeText(id);
+                toast.success('Full Project ID copied!');
+              }}
+              title="Click to copy full Project ID"
+              className="font-mono text-xs text-black/50 hover:text-black hover:underline cursor-pointer select-none"
+            >
+              PROJECT_ID: {id.slice(0,8)} (click to copy full)
+            </p>
           </div>
         </div>
         

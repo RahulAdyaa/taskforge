@@ -93,11 +93,28 @@ const joinProjectSchema = z.object({ projectId: z.string().min(1) });
 router.post('/join', validate(joinProjectSchema), async (req, res, next) => {
   try {
     const { projectId } = req.body;
-    const project = await Project.findById(projectId);
+    
+    // Support prefix matching (e.g. first 8 characters) or full 24-character ID
+    let project;
+    if (mongoose.Types.ObjectId.isValid(projectId)) {
+      project = await Project.findById(projectId);
+    } else {
+      project = await Project.findOne({
+        $expr: {
+          $eq: [
+            { $substrCP: [ { $toString: "$_id" }, 0, projectId.length ] },
+            projectId.toLowerCase()
+          ]
+        }
+      });
+    }
+
     if (!project) return res.status(404).json({ error: 'Project not found with that ID.' });
-    const existing = await ProjectMember.findOne({ userId: req.user.id, projectId });
+    
+    const existing = await ProjectMember.findOne({ userId: req.user.id, projectId: project.id });
     if (existing) return res.status(400).json({ error: 'You are already a member of this project.' });
-    const membership = await ProjectMember.create({ userId: req.user.id, projectId, role: 'MEMBER' });
+    
+    const membership = await ProjectMember.create({ userId: req.user.id, projectId: project.id, role: 'MEMBER' });
     res.status(201).json(membership);
   } catch (error) { next(error); }
 });

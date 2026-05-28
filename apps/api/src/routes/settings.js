@@ -715,6 +715,10 @@ TaskForge User Guide, Help Documentation & Feature Reference:
    - "AI Configuration": Customize your AI credits, Gemini AI model parameters (temperature, max tokens), and system prompts.
    - "Billing & Plan": View active subscription plans (FREE, PRO, ENTERPRISE) and billing history.
    - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
+
+8. AI Task Generator (Analyze & Execute):
+   - What it is: A tool that allows project Admins to auto-generate multiple formatted tasks from a single natural language description or prompt.
+   - How to use: Go to any project view. If you are an Admin, click the "Analyze & Execute" button in the upper right (next to "New Task"). Enter a prompt describing the tasks you need (e.g. "Create subtasks for setting up auth"), and click to generate. Review the generated list, edit assignees or dates, and click "Deploy Tasks" to instantly create them on the Kanban board.
 `;
 
 const chatSchema = z.object({ message: z.string().min(1).max(1000) });
