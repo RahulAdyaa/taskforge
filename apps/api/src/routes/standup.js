@@ -5,13 +5,53 @@ const authenticate = require('../middleware/authenticate');
 const router = express.Router();
 router.use(authenticate);
 
-// OpenRouter fallback chain (optimized for speed with fast free models)
+// OpenRouter AI models (prioritizing premium/low-latency models)
 const OPENROUTER_MODELS = [
+  'google/gemini-2.5-flash',
+  'openai/gpt-4o-mini',
+  'meta-llama/llama-3.3-70b-instruct',
+  'qwen/qwen-2.5-coder-32b-instruct',
   'openrouter/free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'qwen/qwen-2.5-coder-32b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
 ];
+
+const callGrokAPI = async (apiKey, systemPrompt, userPrompt) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+
+  try {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-2-1212',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.5,
+        max_tokens: 1500,
+      }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`Grok API error (grok-2-1212, HTTP ${response.status}):`, err);
+      throw new Error(`Model grok-2-1212 failed with HTTP ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
   const controller = new AbortController();
@@ -124,8 +164,12 @@ router.post('/generate', async (req, res, next) => {
       },
     };
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
+    const xaiApiKey = process.env.XAI_API_KEY;
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+
+    if (!xaiApiKey && !openRouterApiKey) {
+      return res.status(500).json({ error: 'AI features are not configured.' });
+    }
 
     const systemPrompt = `You are a daily standup report generator for a project management tool called TaskForge. 
 Given a developer's task data, generate a concise, professional daily standup report.
@@ -160,17 +204,41 @@ Keep it concise and professional. Use bullet lists. Return ONLY the markdown rep
     const userPrompt = `Generate my daily standup report from this data:\n\n${JSON.stringify(contextData, null, 2)}`;
 
     let lastError;
-    for (const model of OPENROUTER_MODELS) {
+    let standupText = '';
+
+    // 1. Try direct Grok first if key exists
+    if (xaiApiKey) {
       try {
-        console.log(`[Standup] Trying model: ${model}`);
-        const data = await callOpenRouterAPI(apiKey, model, systemPrompt, userPrompt);
-        const text = data.choices?.[0]?.message?.content || '';
-        if (!text.trim()) { lastError = new Error('Empty response from AI'); continue; }
-        console.log(`[Standup] Succeeded with model: ${model}`);
-        return res.json({ standup: text.trim(), generatedAt: now.toISOString(), model, context: contextData.stats });
+        console.log(`[Standup] Trying direct Grok (grok-2-1212)...`);
+        const data = await callGrokAPI(xaiApiKey, systemPrompt, userPrompt);
+        standupText = data.choices?.[0]?.message?.content || '';
+        if (standupText.trim()) {
+          console.log(`[Standup] Succeeded with Grok`);
+          return res.json({ standup: standupText.trim(), generatedAt: now.toISOString(), model: 'grok-2-1212', context: contextData.stats });
+        }
       } catch (err) {
-        console.error(`[Standup] Model ${model} failed:`, err.message);
+        console.error(`[Standup] Grok failed, falling back:`, err.message);
         lastError = err;
+      }
+    }
+
+    // 2. Fallback to OpenRouter chain
+    if (openRouterApiKey) {
+      for (const model of OPENROUTER_MODELS) {
+        try {
+          console.log(`[Standup] Trying model: ${model}`);
+          const data = await callOpenRouterAPI(openRouterApiKey, model, systemPrompt, userPrompt);
+          standupText = data.choices?.[0]?.message?.content || '';
+          if (standupText.trim()) {
+            console.log(`[Standup] Succeeded with model: ${model}`);
+            return res.json({ standup: standupText.trim(), generatedAt: now.toISOString(), model, context: contextData.stats });
+          } else {
+            lastError = new Error('Empty response from AI');
+          }
+        } catch (err) {
+          console.error(`[Standup] Model ${model} failed:`, err.message);
+          lastError = err;
+        }
       }
     }
 
