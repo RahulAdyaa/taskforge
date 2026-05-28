@@ -619,4 +619,128 @@ router.get('/analytics', async (req, res, next) => {
   }
 });
 
+const { z } = require('zod');
+const validate = require('../middleware/validate');
+
+// OpenRouter AI models for global settings chat
+const OPENROUTER_MODELS = [
+  'openrouter/free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+];
+
+const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+        'X-Title': 'TaskForge',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`OpenRouter settings chat error (${model}, HTTP ${response.status}):`, err);
+      throw new Error(`Model ${model} failed with HTTP ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
+const TASKFORGE_KB = `
+TaskForge User Guide & Help Documentation:
+1. How to create a project:
+   - Go to the "All Projects" dashboard page (/app/dashboard or /app).
+   - Click the "New Project" button in the upper right.
+   - Enter a Project Name and description, then click "Create Project".
+2. How to see the setup:
+   - Navigate into your project by clicking on it from the Dashboard.
+   - Click the "Board" tab to view the Kanban Board (TODO, IN PROGRESS, and DONE columns). Drag and drop cards to change status, or double-click to view task details.
+   - Click the "Terminal" tab to view live system logs and audit trail history of actions taken in the project.
+   - Click the "Stats" tab (if you are a project ADMIN) to see charts representing task status distribution, priority breakdown, weekly trends, and project health scores.
+3. How to change settings:
+   - Click "Settings" in the left sidebar to go to the Account Settings page (/app/settings).
+   - Use the settings tabs to configure:
+     - "Basic Profile": Display name, username handle, professional headline, bio, avatar, and cover banner.
+     - "Personal Info": Phone number, location, and timezone.
+     - "Social & Portfolio": GitHub, LinkedIn, portfolio link, resume, tech stack, experience level, and certifications.
+     - "Dashboard Stats": View dynamic Operational Analytics (total projects, estimated API calls, AI runs, and storage footprint) and monthly operational traffic graphs.
+     - "Preferences": Configure email preferences, push/email notifications, language, theme (switching between Light Mode and Dark Mode), default layout, and profile visibility (public or private).
+     - "Security & 2FA": Change your password, set up Two-Factor Authentication (2FA) with a QR code scanner, and monitor or revoke active sessions.
+     - "Developer SDK": Generate API keys and configure webhooks.
+     - "Workspaces": Manage project workspaces and invite new members by email.
+     - "Activity Log": View your personal audit log history.
+     - "AI Configuration": Customize your AI credits, Gemini AI model parameters (temperature, max tokens), and system prompts.
+     - "Billing & Plan": View active subscription plans (FREE, PRO, ENTERPRISE) and billing history.
+     - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
+`;
+
+const chatSchema = z.object({ message: z.string().min(1).max(1000) });
+
+// POST /api/settings/chat - Global user settings/nav assistant chat
+router.post('/chat', validate(chatSchema), async (req, res, next) => {
+  try {
+    const { message } = req.body;
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterApiKey) return res.status(500).json({ error: 'AI features are not configured.' });
+
+    let replyText = '';
+    let lastError;
+    const systemPrompt = `You are the TaskForge AI Assistant. You help users navigate the platform and answer questions about how to use TaskForge.
+The user is ${req.user.name}.
+
+Here is the general TaskForge Help documentation for navigating/using the app:
+${TASKFORGE_KB}
+
+Answer the user's question concisely, naturally, and helpfully in natural language using the provided documentation.`;
+
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        console.log(`[Settings Chat] Trying model: ${model}`);
+        const data = await callOpenRouterAPI(openRouterApiKey, model, systemPrompt, message);
+        replyText = data.choices?.[0]?.message?.content || '';
+        if (replyText.trim()) {
+          console.log(`[Settings Chat] Succeeded with model: ${model}`);
+          break;
+        } else {
+          lastError = new Error('Empty response from model');
+        }
+      } catch (err) {
+        console.error(`[Settings Chat] Model ${model} failed:`, err.message);
+        lastError = err;
+      }
+    }
+
+    if (!replyText.trim()) {
+      replyText = `I apologize, but my AI core is currently unresponsive. I am built to help you with projects, setup, settings, and other features of TaskForge. Please try again in a few moments.`;
+    }
+
+    res.json({ reply: replyText });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

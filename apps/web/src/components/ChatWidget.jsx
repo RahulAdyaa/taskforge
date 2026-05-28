@@ -1,15 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
+import { useLocation } from 'react-router-dom';
 import api from '../lib/axios';
 
-export default function ChatWidget({ projectId }) {
+export default function ChatWidget() {
+  const { pathname } = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi there! I am the TaskForge AI. How can I assist you with this project?' }
-  ]);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
+
+  // Extract projectId dynamically from URL path if inside a project view
+  const projectMatch = pathname.match(/\/app\/projects\/([^/]+)/);
+  const projectId = projectMatch && projectMatch[1] !== 'settings' ? projectMatch[1] : null;
+
+  const [messages, setMessages] = useState([]);
+
+  // Reset messages and load appropriate greeting when projectId changes
+  useEffect(() => {
+    const greeting = projectId
+      ? 'Hi there! I am the TaskForge AI. How can I assist you with this project?'
+      : 'Hi there! I am the TaskForge AI. How can I help you create projects, see the setup, or configure your settings?';
+    setMessages([{ role: 'assistant', content: greeting }]);
+  }, [projectId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,7 +34,8 @@ export default function ChatWidget({ projectId }) {
 
   const chatMutation = useMutation({
     mutationFn: async (message) => {
-      const { data } = await api.post(`/projects/${projectId}/chat`, { message });
+      const url = projectId ? `/projects/${projectId}/chat` : `/settings/chat`;
+      const { data } = await api.post(url, { message });
       return data.reply;
     },
     onSuccess: (reply) => {
@@ -41,6 +55,11 @@ export default function ChatWidget({ projectId }) {
     setInput('');
     chatMutation.mutate(userMessage);
   };
+
+  // Only display the chatbot inside authenticated app views (/app)
+  if (!pathname.startsWith('/app')) {
+    return null;
+  }
 
   if (!isOpen) {
     return (

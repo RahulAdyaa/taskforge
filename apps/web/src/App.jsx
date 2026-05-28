@@ -18,6 +18,7 @@ import api from './lib/axios';
 import CommandPalette from './components/CommandPalette';
 import GlobalSocket from './components/GlobalSocket';
 import { ThemeProvider } from './store/themeStore';
+import ChatWidget from './components/ChatWidget';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -25,7 +26,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
-  const { setAuth, logout } = useAuthStore();
+  const { setAuth, logout, isAuthenticated } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -56,6 +57,7 @@ function App() {
       <Router>
         <GlobalSocket />
         <CommandPalette />
+        {isAuthenticated && <ChatWidget />}
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />

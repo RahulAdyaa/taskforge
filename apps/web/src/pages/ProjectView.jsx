@@ -5,7 +5,6 @@ import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as Lin
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import KanbanBoard from '../components/KanbanBoard';
-import ChatWidget from '../components/ChatWidget';
 import { useAuthStore } from '../store/authStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, CartesianGrid } from 'recharts';
 import NotificationBell from '../components/NotificationBell';
@@ -540,8 +539,6 @@ export default function ProjectView() {
           onClose={() => setShowAIModal(false)}
         />
       )}
-
-      <ChatWidget projectId={id} />
     </div>
   );
 }

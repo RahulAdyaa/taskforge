@@ -363,9 +363,45 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openRouterApiKey) return res.status(500).json({ error: 'AI features are not configured.' });
 
+    const TASKFORGE_KB = `
+TaskForge User Guide & Help Documentation:
+1. How to create a project:
+   - Go to the "All Projects" dashboard page (/app/dashboard or /app).
+   - Click the "New Project" button in the upper right.
+   - Enter a Project Name and description, then click "Create Project".
+2. How to see the setup:
+   - Navigate into your project by clicking on it from the Dashboard.
+   - Click the "Board" tab to view the Kanban Board (TODO, IN PROGRESS, and DONE columns). Drag and drop cards to change status, or double-click to view task details.
+   - Click the "Terminal" tab to view live system logs and audit trail history of actions taken in the project.
+   - Click the "Stats" tab (if you are a project ADMIN) to see charts representing task status distribution, priority breakdown, weekly trends, and project health scores.
+3. How to change settings:
+   - Click "Settings" in the left sidebar to go to the Account Settings page (/app/settings).
+   - Use the settings tabs to configure:
+     - "Basic Profile": Display name, username handle, professional headline, bio, avatar, and cover banner.
+     - "Personal Info": Phone number, location, and timezone.
+     - "Social & Portfolio": GitHub, LinkedIn, portfolio link, resume, tech stack, experience level, and certifications.
+     - "Dashboard Stats": View dynamic Operational Analytics (total projects, estimated API calls, AI runs, and storage footprint) and monthly operational traffic graphs.
+     - "Preferences": Configure email preferences, push/email notifications, language, theme (switching between Light Mode and Dark Mode), default layout, and profile visibility (public or private).
+     - "Security & 2FA": Change your password, set up Two-Factor Authentication (2FA) with a QR code scanner, and monitor or revoke active sessions.
+     - "Developer SDK": Generate API keys and configure webhooks.
+     - "Workspaces": Manage project workspaces and invite new members by email.
+     - "Activity Log": View your personal audit log history.
+     - "AI Configuration": Customize your AI credits, Gemini AI model parameters (temperature, max tokens), and system prompts.
+     - "Billing & Plan": View active subscription plans (FREE, PRO, ENTERPRISE) and billing history.
+     - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
+`;
+
     let replyText = '';
     let lastError;
-    const systemPrompt = `You are the TaskForge AI Assistant. You help users manage their projects.\nThe user is ${req.user.name}.\nHere is the current project status context:\n${summary}\nAnswer the user's question concisely and helpfully.`;
+    const systemPrompt = `You are the TaskForge AI Assistant. You help users manage their projects and navigate the platform.
+The user is ${req.user.name}.
+Here is the current project status context:
+${summary}
+
+Here is the general TaskForge Help documentation for navigating/using the app:
+${TASKFORGE_KB}
+
+Answer the user's question concisely, naturally, and helpfully using the provided documentation.`;
 
     for (const model of OPENROUTER_MODELS) {
       try {
