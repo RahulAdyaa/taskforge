@@ -101,14 +101,17 @@ router.post('/generate', async (req, res, next) => {
       userName: req.user.name,
       date: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
       completedYesterday: completedTasks.map(t => ({
+        id: t._id.toString(), projectId: t.projectId?._id?.toString() || 'Unknown',
         title: t.title, project: t.projectId?.name || 'Unknown', priority: t.priority,
       })),
       currentQueue: openTasks.map(t => ({
+        id: t._id.toString(), projectId: t.projectId?._id?.toString() || 'Unknown',
         title: t.title, status: t.status, project: t.projectId?.name || 'Unknown', priority: t.priority,
         dueDate: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : null,
         isOverdue: t.dueDate ? new Date(t.dueDate) < now : false,
       })),
       blockers: blockedTasks.map(t => ({
+        id: t._id.toString(), projectId: t.projectId?._id?.toString() || 'Unknown',
         title: t.title, project: t.projectId?.name || 'Unknown',
         blockedBy: t.blockedBy.filter(b => b.status !== 'DONE').map(b => b.title),
       })),
@@ -127,26 +130,32 @@ router.post('/generate', async (req, res, next) => {
     const systemPrompt = `You are a daily standup report generator for a project management tool called TaskForge. 
 Given a developer's task data, generate a concise, professional daily standup report.
 
+Each task in the input data has an "id" and a "projectId". 
+When listing any task in the report under "What I completed", "What I'm working on today", or "Blockers & Risks", you MUST format the task title as a custom markdown link pointing to its task URL:
+[Task Title](task://{projectId}/{id})
+
+For example:
+- [[NEW] Read a concise tutorial...](task://6a159a97bb6684b44d0bb8f0/6a159a97bb6684b44d0bb8f1) (Project Name) [Status]
+
 The report MUST follow this exact markdown structure:
 
 ## 🗓 Daily Standup — {date}
 **{userName}**
 
 ### ✅ What I completed
-- List completed tasks with project names. If none, say "No tasks completed in the last 24 hours."
+- List completed tasks with project names, formatting task titles as links. If none, say "No tasks completed in the last 24 hours."
 
 ### 🔄 What I'm working on today
-- List the top priority open tasks (max 5). Include status and project name.
+- List the top priority open tasks (max 5), formatting task titles as links. Include status and project name.
 - Flag any overdue items with ⚠️
 
 ### 🚧 Blockers & Risks
-- List any blocked tasks and what they're waiting on. If none, say "No blockers at this time."
+- List any blocked tasks (formatting titles as links) and what they're waiting on. If none, say "No blockers at this time."
 
 ### 📊 Quick Stats
 - X tasks completed | Y tasks in queue | Z blockers | W overdue
 
-Keep it concise and professional. Use bullet points. Don't invent tasks that aren't in the data.
-Return ONLY the markdown report, nothing else.`;
+Keep it concise and professional. Use bullet lists. Return ONLY the markdown report, nothing else.`;
 
     const userPrompt = `Generate my daily standup report from this data:\n\n${JSON.stringify(contextData, null, 2)}`;
 
@@ -181,7 +190,7 @@ function generateFallbackReport(ctx) {
   if (ctx.completedYesterday.length === 0) {
     lines.push(`- No tasks completed in the last 24 hours.\n`);
   } else {
-    ctx.completedYesterday.forEach(t => lines.push(`- **${t.title}** (${t.project}) [${t.priority}]`));
+    ctx.completedYesterday.forEach(t => lines.push(`- [${t.title}](task://${t.projectId}/${t.id}) (${t.project}) [${t.priority}]`));
     lines.push('');
   }
   lines.push(`### 🔄 What I'm working on today`);
@@ -191,7 +200,7 @@ function generateFallbackReport(ctx) {
     ctx.currentQueue.slice(0, 5).forEach(t => {
       const overdue = t.isOverdue ? ' ⚠️ OVERDUE' : '';
       const due = t.dueDate ? ` — due ${t.dueDate}` : '';
-      lines.push(`- **${t.title}** (${t.project}) [${t.status}]${due}${overdue}`);
+      lines.push(`- [${t.title}](task://${t.projectId}/${t.id}) (${t.project}) [${t.status}]${due}${overdue}`);
     });
     lines.push('');
   }
@@ -199,7 +208,7 @@ function generateFallbackReport(ctx) {
   if (ctx.blockers.length === 0) {
     lines.push(`- No blockers at this time.\n`);
   } else {
-    ctx.blockers.forEach(t => lines.push(`- **${t.title}** (${t.project}) — blocked by: ${t.blockedBy.join(', ')}`));
+    ctx.blockers.forEach(t => lines.push(`- [${t.title}](task://${t.projectId}/${t.id}) (${t.project}) — blocked by: ${t.blockedBy.join(', ')}`));
     lines.push('');
   }
   lines.push(`### 📊 Quick Stats`);

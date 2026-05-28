@@ -105,7 +105,7 @@ export default function MyTasks() {
             {tasks?.map(task => (
               <Link 
                 key={task.id} 
-                to={`/app/projects/${task.projectId}`}
+                to={`/app/projects/${task.projectId}?task=${task.id}`}
                 className="bg-white p-6 rounded-2xl border border-[#E8E4DD] hover:border-black transition-colors shadow-sm group flex flex-col h-full"
               >
                 <div className="flex justify-between items-start mb-4">

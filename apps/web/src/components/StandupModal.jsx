@@ -2,11 +2,18 @@ import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Zap, Copy, Check, X, Sparkles, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
 
 export default function StandupModal({ onClose }) {
   const [standupData, setStandupData] = useState(null);
   const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+
+  const handleTaskLinkClick = (projectId, taskId) => {
+    onClose();
+    navigate(`/app/projects/${projectId}?task=${taskId}`);
+  };
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -64,14 +71,14 @@ export default function StandupModal({ onClose }) {
           <div key={i} className={`flex items-start gap-3 py-2 px-3 rounded-lg mb-1 ${hasWarning ? 'bg-red-50 border border-red-100' : 'hover:bg-[#F5F3EE]'}`}>
             <span className="text-black/30 mt-0.5 select-none">›</span>
             <span className="font-mono text-xs text-black/80 leading-relaxed">
-              {renderBoldText(content)}
+              {renderTextWithLinksAndBold(content)}
             </span>
           </div>
         );
       } else {
         elements.push(
           <p key={i} className="font-mono text-xs text-black/70 leading-relaxed">
-            {renderBoldText(trimmed)}
+            {renderTextWithLinksAndBold(trimmed)}
           </p>
         );
       }
@@ -80,13 +87,41 @@ export default function StandupModal({ onClose }) {
     return elements;
   };
 
-  const renderBoldText = (text) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const renderTextWithLinksAndBold = (text) => {
+    // Regex splits by markdown links pointing to task://
+    const regex = /(\[.*?\]\(task:\/\/.*?\))/g;
+    const parts = text.split(regex);
+    
     return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="text-black font-semibold">{part.slice(2, -2)}</strong>;
+      if (part.startsWith('[') && part.includes('](task://')) {
+        const linkMatch = part.match(/\[(.*?)\]\((task:\/\/.*?)\)/);
+        if (linkMatch) {
+          const linkText = linkMatch[1];
+          const taskUrl = linkMatch[2];
+          const path = taskUrl.replace('task://', '');
+          const [projId, tId] = path.split('/');
+          
+          return (
+            <button
+              key={i}
+              onClick={() => handleTaskLinkClick(projId, tId)}
+              className="text-[#E63B2E] hover:underline font-bold text-left focus:outline-none inline-block align-baseline"
+            >
+              {linkText}
+            </button>
+          );
+        }
       }
-      return part;
+      
+      // Render bold text for non-link parts
+      const boldRegex = /(\*\*.*?\*\*)/g;
+      const subparts = part.split(boldRegex);
+      return subparts.map((sub, j) => {
+        if (sub.startsWith('**') && sub.endsWith('**')) {
+          return <strong key={`${i}-${j}`} className="text-black font-semibold">{sub.slice(2, -2)}</strong>;
+        }
+        return sub;
+      });
     });
   };
 

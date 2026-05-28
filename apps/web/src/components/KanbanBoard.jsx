@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { useSearchParams } from 'react-router-dom';
 
 import TaskDetailsModal from './TaskDetailsModal';
 import { TaskCardTimer } from './TimeTracker';
@@ -13,6 +14,8 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
   const queryClient = useQueryClient();
   const [columns, setColumns] = useState({ TODO: [], IN_PROGRESS: [], DONE: [] });
   const [selectedTask, setSelectedTask] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const taskIdParam = searchParams.get('task');
 
   useEffect(() => {
     const cols = { TODO: [], IN_PROGRESS: [], DONE: [] };
@@ -21,6 +24,17 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
     });
     setColumns(cols);
   }, [tasks]);
+
+  useEffect(() => {
+    if (taskIdParam && tasks?.length > 0) {
+      const task = tasks.find(t => t.id === taskIdParam);
+      if (task) {
+        setSelectedTask(task);
+      }
+    } else {
+      setSelectedTask(null);
+    }
+  }, [taskIdParam, tasks]);
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, status }) => {
@@ -85,7 +99,18 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
         onDragCancel={handleDragCancel}
       >
         {['TODO', 'IN_PROGRESS', 'DONE'].map(status => (
-          <Column key={status} id={status} title={status.replace('_', ' ')} tasks={columns[status]} projectId={projectId} onTaskClick={setSelectedTask} />
+          <Column 
+            key={status} 
+            id={status} 
+            title={status.replace('_', ' ')} 
+            tasks={columns[status]} 
+            projectId={projectId} 
+            onTaskClick={(task) => setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              next.set('task', task.id);
+              return next;
+            })} 
+          />
         ))}
         <DragOverlay>
           {activeTask ? <TaskCard task={activeTask} isOverlay /> : null}
@@ -96,7 +121,16 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
           task={selectedTask} 
           projectId={projectId} 
           labels={labels}
-          onClose={() => setSelectedTask(null)} 
+          onClose={() => {
+            setSelectedTask(null);
+            if (searchParams.has('task')) {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.delete('task');
+                return next;
+              });
+            }
+          }} 
         />
       )}
     </div>
