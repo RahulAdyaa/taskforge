@@ -326,16 +326,16 @@ export default function ProjectView() {
           </>
         )}
         {activeTab === 'terminal' && isAdmin && (
-          <div className="h-full bg-[#111111] text-[#E8E4DD] p-8 overflow-y-auto font-mono text-sm shadow-inner relative">
+          <div className="h-full bg-[#F5F3EE] dark:bg-[#111111] text-black/80 dark:text-[#E8E4DD] p-8 overflow-y-auto font-mono text-sm shadow-inner relative">
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-[#E8E4DD]/20">
+              <div className="flex items-center justify-between mb-8 pb-4 border-b border-[#E8E4DD] dark:border-[#E8E4DD]/20">
                 <h2 className="text-[#E63B2E] uppercase tracking-widest font-bold">System Log Terminal</h2>
-                <div className="text-[#E8E4DD]/50 text-xs">V 1.0.4 - LIVE</div>
+                <div className="text-black/40 dark:text-[#E8E4DD]/50 text-xs">V 1.0.4 - LIVE</div>
               </div>
               <div className="space-y-4">
                 {isLogsLoading ? (
                   [...Array(4)].map((_, i) => (
-                    <div key={i} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-[#1A1A1A] rounded border border-[#E8E4DD]/10 opacity-70">
+                    <div key={i} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-white dark:bg-[#1A1A1A] rounded border border-[#E8E4DD] dark:border-[#E8E4DD]/10 opacity-70">
                       <div className="w-48 shrink-0 h-5 rounded skeleton-loading opacity-20" />
                       <div className="flex-1 space-y-2">
                         <div className="h-5 w-1/3 rounded skeleton-loading opacity-20" />
@@ -344,21 +344,21 @@ export default function ProjectView() {
                     </div>
                   ))
                 ) : logsData?.length === 0 ? (
-                  <div className="text-[#E8E4DD]/50 italic">No activity detected.</div>
+                  <div className="text-black/40 dark:text-[#E8E4DD]/50 italic">No activity detected.</div>
                 ) : (
                   logsData?.map(log => (
-                    <div key={log.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-[#1A1A1A] rounded border border-[#E8E4DD]/10 hover:border-[#E63B2E]/50 transition-colors">
+                    <div key={log.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-white dark:bg-[#1A1A1A] rounded border border-[#E8E4DD] dark:border-[#E8E4DD]/10 hover:border-[#E63B2E]/50 transition-colors">
                       <div className="text-[#E63B2E] w-48 shrink-0">
                         {new Date(log.createdAt).toLocaleString()}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="bg-[#E8E4DD] text-[#111111] px-2 py-0.5 rounded text-xs font-bold">{log.action}</span>
-                          <span className="text-[#E8E4DD]/50">by</span>
-                          <span className="text-white">{log.user.name}</span>
+                          <span className="bg-black dark:bg-[#E8E4DD] text-white dark:text-[#111111] px-2 py-0.5 rounded text-xs font-bold">{log.action}</span>
+                          <span className="text-black/40 dark:text-[#E8E4DD]/50">by</span>
+                          <span className="text-black dark:text-white font-bold">{log.user.name}</span>
                         </div>
                         {log.details && (
-                          <div className="text-[#E8E4DD]/70 text-xs mt-2 bg-[#111111] p-3 rounded overflow-x-auto border border-[#E8E4DD]/10">
+                          <div className="text-black/70 dark:text-[#E8E4DD]/70 text-xs mt-2 bg-[#F5F3EE] dark:bg-[#111111] p-3 rounded overflow-x-auto border border-[#E8E4DD] dark:border-[#E8E4DD]/10">
                             {log.details}
                           </div>
                         )}
