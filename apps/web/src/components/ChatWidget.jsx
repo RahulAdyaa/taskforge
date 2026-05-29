@@ -17,21 +17,28 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState(() => {
     try {
       const saved = sessionStorage.getItem('tf_chat_history');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.error('Failed to parse chat history from sessionStorage:', e);
     }
-    return null;
-  }) || [
-    {
-      role: 'assistant',
-      content: 'Hi there! I am the TaskForge AI. How can I assist you with your projects, tasks, or settings?'
-    }
-  ];
+    return [
+      {
+        role: 'assistant',
+        content: 'Hi there! I am the TaskForge AI. How can I assist you with your projects, tasks, or settings?'
+      }
+    ];
+  });
 
   // Save messages to sessionStorage whenever they change
   useEffect(() => {
-    sessionStorage.setItem('tf_chat_history', JSON.stringify(messages));
+    if (Array.isArray(messages)) {
+      sessionStorage.setItem('tf_chat_history', JSON.stringify(messages));
+    }
   }, [messages]);
 
   const scrollToBottom = () => {
@@ -99,7 +106,7 @@ export default function ChatWidget() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 bg-[#F5F3EE] flex flex-col gap-4">
-        {messages.map((msg, index) => (
+        {Array.isArray(messages) && messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-2xl p-3.5 ${
               msg.role === 'user' 
@@ -109,7 +116,7 @@ export default function ChatWidget() {
               <div className={`font-sans text-sm leading-relaxed ${
                 msg.role === 'user'
                   ? 'text-white/95 [&_a]:text-white [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold'
-                  : 'text-gray-800 [&_a]:text-red-500 [&_a]:underline [&_a]:hover:text-red-600 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1'
+                  : 'text-gray-800 dark:text-neutral-200 [&_a]:text-red-500 dark:[&_a]:text-red-400 [&_a]:underline [&_a]:hover:text-red-600 dark:[&_a]:hover:text-red-300 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold dark:[&_strong]:text-white [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1'
               }`}>
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>

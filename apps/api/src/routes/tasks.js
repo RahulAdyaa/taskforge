@@ -75,12 +75,12 @@ const aiGenerateSchema = z.object({
   })).optional(),
 });
 
-// OpenRouter AI models (optimized for speed and reliability)
+// OpenRouter AI models (100% free models, prioritized for speed and code intelligence)
 const OPENROUTER_MODELS = [
-  'openrouter/free',
+  'poolside/laguna-xs.2:free',
+  'google/gemma-4-31b-it:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2.5-coder-32b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
+  'openrouter/free',
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, prompt) => {

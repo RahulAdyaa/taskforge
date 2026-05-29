@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../store/themeStore';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -13,6 +14,7 @@ export default function Login() {
   const navigate = useNavigate();
   const setAuth = useAuthStore(state => state.setAuth);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -134,12 +136,17 @@ export default function Login() {
               <div className="h-px bg-[#E8E4DD] flex-1"></div>
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex justify-center w-full">
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => {
                   toast.error('Google Sign-In Failed');
                 }}
+                theme={theme === 'dark' ? 'filled_black' : 'outline'}
+                size="large"
+                shape="rectangular"
+                width="368"
+                logo_alignment="left"
               />
             </div>
             
