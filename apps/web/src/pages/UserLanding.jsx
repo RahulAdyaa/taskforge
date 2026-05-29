@@ -25,6 +25,31 @@ const DEV_QUOTES = [
   { text: "Make it work, make it right, make it fast.", author: "Kent Beck" },
   { text: "First, solve the problem. Then, write the code.", author: "John Johnson" },
   { text: "Computers are good at following instructions, but not at reading your mind.", author: "Donald Knuth" },
+  { text: "The best error message is the one that never shows up.", author: "Unknown" },
+  { text: "Before software can be reusable it first has to be usable.", author: "Ralph Johnson" },
+  { text: "If debugging is the process of removing software bugs, then programming must be the process of putting them in.", author: "Edsger W. Dijkstra" },
+  { text: "There are two ways of constructing a software design: One way is to make it so simple that there are obviously no deficiencies, and the other way is to make it so complicated that there are no obvious deficiencies.", author: "C.A.R. Hoare" },
+  { text: "Measuring programming progress by lines of code is like measuring aircraft building progress by weight.", author: "Bill Gates" },
+  { text: "Walking on water and developing software from a specification are easy if both are frozen.", author: "Edward V. Berard" },
+  { text: "Code is like humor. When you have to explain it, it’s bad.", author: "Cory House" },
+  { text: "Clean code always looks like it was written by someone who cares.", author: "Michael Feathers" },
+  { text: "Any fool can write code that a computer can understand. Good programmers write code that humans can understand.", author: "Martin Fowler" },
+  { text: "Fix the cause, not the symptom.", author: "Steve Maguire" },
+  { text: "Program testing can be used to show the presence of bugs, but never to show their absence!", author: "Edsger W. Dijkstra" },
+  { text: "The computer was born to solve problems that did not exist before.", author: "Bill Gates" },
+  { text: "Progress is possible only when we train ourselves to think about programs without thinking of them as pieces of code.", author: "Edsger W. Dijkstra" },
+  { text: "Design is not just what it looks like and feels like. Design is how it works.", author: "Steve Jobs" },
+  { text: "Sometimes it pays to stay in bed on Monday, rather than spending the rest of the week debugging Monday's code.", author: "Dan Salomon" },
+  { text: "Software is a gas; it expands to fill its container.", author: "Nathan Myhrvold" },
+  { text: "Programs must be written for people to read, and only incidentally for machines to execute.", author: "Harold Abelson" },
+  { text: "One of my most productive days was throwing away 1000 lines of code.", author: "Ken Thompson" },
+  { text: "Indeed, the ratio of time spent reading code versus writing code is well over 10 to 1.", author: "Robert C. Martin" },
+  { text: "Software is like entropy: It is difficult to grasp, weighs nothing, and obeys the Second Law of Thermodynamics; i.e., it always increases.", author: "Norman Augustine" },
+  { text: "Perfect is the enemy of good.", author: "Voltaire" },
+  { text: "It's not a bug – it's an undocumented feature.", author: "Unknown" },
+  { text: "The best thing about a boolean is even if you are wrong, you are only off by a bit.", author: "Anonymous" },
+  { text: "Without requirements or design, programming is the art of adding bugs to an empty text file.", author: "Louis Srygley" },
+  { text: "There are only two hard things in Computer Science: cache invalidation and naming things.", author: "Phil Karlton" }
 ];
 
 export default function UserLanding() {
@@ -32,11 +57,23 @@ export default function UserLanding() {
   const logout = useAuthStore(state => state.logout);
   const navigate = useNavigate();
   const [quote, setQuote] = useState({ text: '', author: '' });
+  const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
     const randomQuote = DEV_QUOTES[Math.floor(Math.random() * DEV_QUOTES.length)];
     setQuote(randomQuote);
   }, []);
+
+  const shuffleQuote = () => {
+    if (isFading) return;
+    const candidates = DEV_QUOTES.filter(q => q.text !== quote.text);
+    const randomQuote = candidates[Math.floor(Math.random() * candidates.length)];
+    setIsFading(true);
+    setTimeout(() => {
+      setQuote(randomQuote);
+      setIsFading(false);
+    }, 200);
+  };
 
   const handleLogout = async () => {
     try {
@@ -305,16 +342,27 @@ export default function UserLanding() {
             </div>
 
             {/* Daily Quote widget */}
-            <div className="bg-[#F5F3EE] dark:bg-[#0F0F12]/45 border border-[#E8E4DD]/60 dark:border-zinc-800/50 rounded-2xl p-6 relative overflow-hidden">
-              <span className="font-mono text-[9px] tracking-wider text-black/40 dark:text-zinc-500 uppercase block mb-3">
-                Inspirational Protocol
-              </span>
-              <p className="font-cursive italic text-lg text-black/85 dark:text-zinc-300 leading-relaxed">
-                "{quote.text}"
-              </p>
-              <span className="block text-xs font-mono text-black/50 dark:text-zinc-500 mt-2 text-right">
-                — {quote.author}
-              </span>
+            <div 
+              onClick={shuffleQuote}
+              className="bg-[#F5F3EE] dark:bg-[#0F0F12]/45 border border-[#E8E4DD]/60 dark:border-zinc-800/50 rounded-2xl p-6 relative overflow-hidden cursor-pointer hover:border-signal-red/35 select-none transition-all duration-300 active:scale-[0.98] group"
+              title="Click to get another quote"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-mono text-[9px] tracking-wider text-black/40 dark:text-zinc-500 uppercase">
+                  Inspirational Protocol
+                </span>
+                <span className="font-mono text-[8px] text-black/25 dark:text-zinc-600 uppercase group-hover:text-signal-red transition-colors">
+                  Click to Shuffle
+                </span>
+              </div>
+              <div className={`transition-opacity duration-200 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
+                <p className="font-cursive italic text-lg text-black/85 dark:text-zinc-300 leading-relaxed">
+                  "{quote.text}"
+                </p>
+                <span className="block text-xs font-mono text-black/50 dark:text-zinc-500 mt-2 text-right">
+                  — {quote.author}
+                </span>
+              </div>
             </div>
           </div>
         </div>
