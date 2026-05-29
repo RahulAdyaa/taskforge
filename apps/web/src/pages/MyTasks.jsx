@@ -51,7 +51,7 @@ export default function MyTasks() {
     <div className="min-h-screen bg-off-white flex">
       {/* Sidebar */}
       <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
-        <Link to="/app" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
+        <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
           <Link to="/app/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl text-black/60 hover:text-black hover:bg-white/50 transition-all font-medium">

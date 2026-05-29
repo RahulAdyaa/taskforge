@@ -92,7 +92,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-off-white flex">
       {/* Sidebar */}
       <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
-        <Link to="/app" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
+        <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-xl border border-[#E8E4DD] text-black font-medium">

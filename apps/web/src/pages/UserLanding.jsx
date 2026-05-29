@@ -78,7 +78,7 @@ export default function UserLanding() {
       {/* Premium Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#F5F3EE]/80 dark:bg-[#08080A]/85 backdrop-blur-xl border-b border-[#E8E4DD] dark:border-zinc-800/80 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link to="/app" className="font-display text-2xl font-black tracking-tight hover:text-signal-red transition-colors">
+          <Link to="/" className="font-display text-2xl font-black tracking-tight hover:text-signal-red transition-colors">
             TASKFORGE
           </Link>
           <div className="hidden md:flex items-center gap-3">
