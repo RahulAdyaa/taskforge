@@ -208,7 +208,7 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
         try {
           const notification = await Notification.create({
             userId: taskData.assigneeId, type: 'TASK_ASSIGNED',
-            message: `AI assigned you to "${task.title}"`, link: `/app/projects/${projectId}`,
+            message: `AI assigned you to "${task.title}"`, link: `/app/projects/${projectId}?task=${task.id}`,
           });
           req.emitEvent(`user_${taskData.assigneeId}`, 'new_notification', notification);
         } catch (e) { console.error('Failed to send AI assignment notification:', e); }
@@ -239,7 +239,7 @@ router.post('/', requireProjectRole(['ADMIN']), validate(createTaskSchema), asyn
     if (task.assigneeId && task.assigneeId.toString() !== req.user.id) {
       const notification = await Notification.create({
         userId: task.assigneeId, type: 'TASK_ASSIGNED',
-        message: `You were assigned a new task: ${task.title}`, link: `/app/projects/${projectId}`,
+        message: `You were assigned a new task: ${task.title}`, link: `/app/projects/${projectId}?task=${task.id}`,
       });
       req.emitEvent(`user_${task.assigneeId}`, 'notification', notification);
     }
@@ -345,7 +345,7 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     if (task.status !== 'DONE' && updatedTask.status === 'DONE' && updatedTask.creatorId.toString() !== req.user.id) {
       const notification = await Notification.create({
         userId: updatedTask.creatorId, type: 'TASK_COMPLETED',
-        message: `Task completed: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}`,
+        message: `Task completed: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}?task=${updatedTask.id}`,
       });
       req.emitEvent(`user_${updatedTask.creatorId}`, 'notification', notification);
     }
@@ -353,7 +353,7 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     if (updatedTask.assigneeId && updatedTask.assigneeId.toString() !== task.assigneeId?.toString() && updatedTask.assigneeId.toString() !== req.user.id) {
       const notification = await Notification.create({
         userId: updatedTask.assigneeId, type: 'TASK_ASSIGNED',
-        message: `You were assigned a task: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}`,
+        message: `You were assigned a task: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}?task=${updatedTask.id}`,
       });
       req.emitEvent(`user_${updatedTask.assigneeId}`, 'notification', notification);
     }

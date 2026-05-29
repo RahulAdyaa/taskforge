@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Square, Clock } from 'lucide-react';
+import { Play, Square, Clock, Pause } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 
@@ -120,6 +120,8 @@ export function TaskTimeTracker({ taskId, projectId }) {
   const [timerData, setTimerData] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [accumulatedTime, setAccumulatedTime] = useState(0);
   const intervalRef = useRef(null);
 
   const fetchTimer = async () => {
@@ -129,6 +131,7 @@ export function TaskTimeTracker({ taskId, projectId }) {
       if (data.activeEntry) {
         const startMs = new Date(data.activeEntry.startTime).getTime();
         setElapsed(Math.floor((Date.now() - startMs) / 1000));
+        setIsPaused(false);
       }
     } catch (err) {
       console.error('Failed to fetch time entries:', err);
@@ -158,19 +161,32 @@ export function TaskTimeTracker({ taskId, projectId }) {
     onSuccess: ({ data }) => {
       setTimerData(prev => ({ ...prev, activeEntry: data }));
       setElapsed(0);
+      setIsPaused(false);
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to start timer'),
   });
 
   const stopMutation = useMutation({
-    mutationFn: () => api.post(`/projects/${projectId}/tasks/${taskId}/time-entries/stop`),
-    onSuccess: () => {
+    mutationFn: (vars) => api.post(`/projects/${projectId}/tasks/${taskId}/time-entries/stop`),
+    onSuccess: (res, vars) => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      const isPausing = vars?.isPausing;
+      
       setTimerData(prev => ({
         ...prev,
         activeEntry: null,
         totalSeconds: (prev?.totalSeconds || 0) + elapsed,
       }));
+
+      if (isPausing) {
+        setIsPaused(true);
+        setAccumulatedTime(prev => prev + elapsed);
+      } else {
+        setIsPaused(false);
+        setAccumulatedTime(0);
+      }
+      
       setElapsed(0);
       fetchTimer(); // refresh full list
     },
@@ -179,6 +195,12 @@ export function TaskTimeTracker({ taskId, projectId }) {
 
   const isRunning = !!timerData?.activeEntry;
   const totalLogged = timerData?.totalSeconds || 0;
+
+  const displayTime = isRunning 
+    ? accumulatedTime + elapsed 
+    : isPaused 
+      ? accumulatedTime 
+      : 0;
 
   if (isLoading) {
     return (
@@ -198,35 +220,68 @@ export function TaskTimeTracker({ taskId, projectId }) {
           <span className="font-mono text-xs uppercase tracking-widest text-black/50 dark:text-white/50 font-bold">Time Tracker</span>
         </div>
         <div className="font-mono text-xs text-black/40 dark:text-white/40">
-          Total: <strong className="text-black dark:text-white">{formatDuration(totalLogged + (isRunning ? elapsed : 0))}</strong>
+          Total: <strong className="text-black dark:text-white">{formatDuration(totalLogged + (isRunning ? elapsed : isPaused ? accumulatedTime : 0))}</strong>
         </div>
       </div>
 
       {/* Live Timer Display */}
       <div className="p-6 text-center bg-white dark:bg-[#141414]">
-        <div className={`font-display text-5xl tabular-nums mb-4 ${isRunning ? 'text-[#E63B2E]' : 'text-black/20 dark:text-white/20'}`}>
-          {isRunning ? formatDuration(elapsed) : '0m 00s'}
+        <div className={`font-display text-5xl tabular-nums mb-4 ${(isRunning || isPaused) ? 'text-[#E63B2E]' : 'text-black/20 dark:text-white/20'}`}>
+          {isRunning || isPaused ? formatDuration(displayTime) : '0m 00s'}
         </div>
 
-        {isRunning ? (
-          <button
-            onClick={() => stopMutation.mutate()}
-            disabled={stopMutation.isPending}
-            className="inline-flex items-center gap-2 bg-[#E63B2E] text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
-          >
-            <Square className="w-4 h-4 fill-white" />
-            Stop Timer
-          </button>
-        ) : (
-          <button
-            onClick={() => startMutation.mutate()}
-            disabled={startMutation.isPending}
-            className="inline-flex items-center gap-2 bg-black dark:bg-[#E8E4DD] text-white dark:text-black px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] dark:hover:bg-[#E63B2E] dark:hover:text-white transition-colors disabled:opacity-50"
-          >
-            <Play className="w-4 h-4 fill-current dark:fill-black" />
-            Start Timer
-          </button>
-        )}
+        <div className="flex items-center justify-center gap-3">
+          {isRunning ? (
+            <>
+              <button
+                onClick={() => stopMutation.mutate({ isPausing: true })}
+                disabled={stopMutation.isPending}
+                className="inline-flex items-center gap-2 bg-[#EEEBE4] dark:bg-[#2A2A2A] text-black dark:text-white px-6 py-3 rounded-xl font-medium hover:bg-[#E8E4DD] dark:hover:bg-[#3F3F46] transition-colors disabled:opacity-50"
+              >
+                <Pause className="w-4 h-4 fill-current text-black dark:text-white" />
+                Pause Timer
+              </button>
+              <button
+                onClick={() => stopMutation.mutate({ isPausing: false })}
+                disabled={stopMutation.isPending}
+                className="inline-flex items-center gap-2 bg-[#E63B2E] text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                <Square className="w-4 h-4 fill-white" />
+                Stop Timer
+              </button>
+            </>
+          ) : isPaused ? (
+            <>
+              <button
+                onClick={() => startMutation.mutate()}
+                disabled={startMutation.isPending}
+                className="inline-flex items-center gap-2 bg-black dark:bg-[#E8E4DD] text-white dark:text-black px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] dark:hover:bg-[#E63B2E] dark:hover:text-white transition-colors disabled:opacity-50"
+              >
+                <Play className="w-4 h-4 fill-current dark:fill-black" />
+                Resume Timer
+              </button>
+              <button
+                onClick={() => {
+                  setIsPaused(false);
+                  setAccumulatedTime(0);
+                }}
+                className="inline-flex items-center gap-2 bg-[#E63B2E] text-white px-6 py-3 rounded-xl font-medium hover:bg-red-700 transition-colors"
+              >
+                <Square className="w-4 h-4 fill-white" />
+                Stop/Reset
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => startMutation.mutate()}
+              disabled={startMutation.isPending}
+              className="inline-flex items-center gap-2 bg-black dark:bg-[#E8E4DD] text-white dark:text-black px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] dark:hover:bg-[#E63B2E] dark:hover:text-white transition-colors disabled:opacity-50"
+            >
+              <Play className="w-4 h-4 fill-current dark:fill-black" />
+              Start Timer
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Recent Sessions */}

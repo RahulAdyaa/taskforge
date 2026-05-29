@@ -319,7 +319,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
             <div className="flex items-center gap-3 shrink-0">
               <button 
                 onClick={() => setShowDeleteConfirm(true)} 
-                className="text-black/30 hover:text-signal-red transition-colors font-mono text-xs border border-[#E8E4DD] hover:border-signal-red px-3 py-1.5 rounded-lg"
+                className="text-black/60 hover:text-signal-red transition-colors font-mono text-xs border border-[#E8E4DD] hover:border-signal-red px-3 py-1.5 rounded-lg hover:bg-signal-red/5"
               >
                 🗑 Delete
               </button>
