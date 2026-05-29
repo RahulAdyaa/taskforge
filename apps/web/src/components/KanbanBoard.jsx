@@ -44,7 +44,15 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
       queryClient.invalidateQueries(['tasks', projectId]);
       queryClient.invalidateQueries(['dashboard', projectId]);
     },
-    onError: () => toast.error('Failed to update status')
+    onError: () => {
+      toast.error('Failed to update status');
+      // Revert columns state to match the tasks prop
+      const cols = { TODO: [], IN_PROGRESS: [], DONE: [] };
+      tasks.forEach(t => {
+        if (cols[t.status]) cols[t.status].push(t);
+      });
+      setColumns(cols);
+    }
   });
 
   const sensors = useSensors(
