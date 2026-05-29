@@ -22,15 +22,23 @@ function initSockets(server, allowedOrigins) {
     }
     try {
       const payload = verifyAccessToken(token);
-      const user = await User.findById(payload.userId).select('name');
+      const user = await User.findById(payload.userId).select('name activeSessions');
       if (!user) {
         return next(new Error('Authentication error: User not found'));
       }
+
+      if (payload.sessionId) {
+        const isSessionActive = user.activeSessions.some(s => s.id === payload.sessionId);
+        if (!isSessionActive) {
+          return next(new Error('Authentication error: Session has been revoked or expired'));
+        }
+      }
+
       socket.userId = payload.userId;
       socket.userName = user.name;
       next();
     } catch (err) {
-      next(new Error('Authentication error: Invalid token'));
+      next(new Error('Authentication error: Invalid or expired token'));
     }
   });
 

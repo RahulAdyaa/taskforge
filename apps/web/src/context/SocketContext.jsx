@@ -35,9 +35,10 @@ export function SocketProvider({ children }) {
         socketRef.current.disconnect();
       }
 
-      const token = localStorage.getItem('accessToken');
       socketInstance = io(WS_URL, {
-        auth: { token },
+        auth: (cb) => {
+          cb({ token: localStorage.getItem('accessToken') });
+        },
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -49,12 +50,18 @@ export function SocketProvider({ children }) {
       setSocket(socketInstance);
 
       socketInstance.on('connect', () => {
+        console.log('⚡ Socket connected successfully');
         setIsConnected(true);
         socketInstance.emit('register_user', user.id);
       });
 
-      socketInstance.on('disconnect', () => {
+      socketInstance.on('disconnect', (reason) => {
+        console.warn('🔌 Socket disconnected:', reason);
         setIsConnected(false);
+      });
+
+      socketInstance.on('connect_error', (err) => {
+        console.error('❌ Socket connection error:', err.message, err.context || err);
       });
 
       socketInstance.on('presence_update', (onlineIds) => {
