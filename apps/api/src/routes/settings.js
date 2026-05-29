@@ -686,7 +686,7 @@ TaskForge User Guide, Help Documentation & Feature Reference:
 3. Task Details & Time Tracker:
    - Double-clicking a task on the Kanban board opens the Task Details modal.
    - It displays the title, description, priority, status, assignee, due date, labels, comments, and attachments.
-   - "Time Tracker": Inside the Task Details panel, a built-in stopwatch lets you track time spent on a task. Use the Play/Pause buttons to start or stop the timer, which logs time entries in the task history.
+   - "Time Tracker": Inside the Task Details panel, a built-in stopwatch lets you track time spent on a task. Use the Start/Stop buttons to start or stop the timer, which logs time entries in the task history.
 
 4. AI Standup:
    - What it is: A tool that evaluates a user's cross-project activity over the last 24 hours (completed tasks, current queue, blockers, overdue items) and uses AI to generate a daily standup report.
