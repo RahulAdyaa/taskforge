@@ -60,8 +60,29 @@ export function SocketProvider({ children }) {
         setIsConnected(false);
       });
 
-      socketInstance.on('connect_error', (err) => {
+      socketInstance.on('connect_error', async (err) => {
         console.error('❌ Socket connection error:', err.message, err.context || err);
+        
+        // If authentication error, try to refresh the token and reconnect the socket
+        if (err.message && (err.message.includes('Authentication error') || err.message.includes('token'))) {
+          console.log('🔄 Attempting to refresh token for Socket.IO connection recovery...');
+          try {
+            const axios = (await import('axios')).default;
+            const refreshUrl = import.meta.env.VITE_API_URL 
+              ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/auth/refresh`
+              : (import.meta.env.PROD ? '/api/auth/refresh' : 'http://localhost:3001/api/auth/refresh');
+              
+            const { data } = await axios.post(refreshUrl, {}, { withCredentials: true });
+            if (data && data.accessToken) {
+              console.log('✅ Token refreshed successfully for Socket.IO reconnection');
+              localStorage.setItem('accessToken', data.accessToken);
+              // Reconnect the socket
+              socketInstance.connect();
+            }
+          } catch (refreshErr) {
+            console.error('❌ Failed to refresh token for Socket.IO connection:', refreshErr);
+          }
+        }
       });
 
       socketInstance.on('presence_update', (onlineIds) => {
