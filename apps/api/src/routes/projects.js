@@ -347,7 +347,7 @@ router.delete('/:id/members/:userId', requireProjectRole(['ADMIN']), async (req,
 });
 
 // GET audit logs
-router.get('/:id/logs', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
+router.get('/:id/logs', requireProjectRole(['ADMIN']), async (req, res, next) => {
   try {
     const logs = await AuditLog.find({ projectId: req.params.id })
       .sort({ createdAt: -1 }).limit(50).populate('userId', 'name email').lean();

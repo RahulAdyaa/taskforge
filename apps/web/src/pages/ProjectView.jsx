@@ -249,19 +249,21 @@ export default function ProjectView() {
             >
               Board
             </button>
-            <button 
-              onClick={() => setActiveTab('terminal')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'terminal' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
-            >
-              Terminal
-            </button>
             {isAdmin && (
-              <button 
-                onClick={() => setActiveTab('dashboard')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'dashboard' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
-              >
-                <LayoutDashboard className="w-4 h-4" /> Stats
-              </button>
+              <>
+                <button 
+                  onClick={() => setActiveTab('terminal')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'terminal' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+                >
+                  Terminal
+                </button>
+                <button 
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'dashboard' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+                >
+                  <LayoutDashboard className="w-4 h-4" /> Stats
+                </button>
+              </>
             )}
           </div>
           
@@ -323,7 +325,7 @@ export default function ProjectView() {
             </div>
           </>
         )}
-        {activeTab === 'terminal' && (
+        {activeTab === 'terminal' && isAdmin && (
           <div className="h-full bg-[#111111] text-[#E8E4DD] p-8 overflow-y-auto font-mono text-sm shadow-inner relative">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center justify-between mb-8 pb-4 border-b border-[#E8E4DD]/20">
