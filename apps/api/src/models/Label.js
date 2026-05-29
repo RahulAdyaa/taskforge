@@ -45,5 +45,6 @@ const labelSchema = new mongoose.Schema(
 
 // Compound unique index — replaces Prisma's @@unique([name, projectId])
 labelSchema.index({ name: 1, projectId: 1 }, { unique: true });
+labelSchema.index({ projectId: 1 });
 
 module.exports = mongoose.model('Label', labelSchema);

@@ -186,3 +186,40 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #3F3F46; }
   color: var(--color-accent) !important;
 }
 
+/* Premium Shimmer Loading States */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-loading {
+  background: linear-gradient(90deg, #f3f1eb 25%, #e6e2d9 50%, #f3f1eb 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s infinite linear;
+}
+
+html.dark .skeleton-loading {
+  background: linear-gradient(90deg, #18181c 25%, #27272a 50%, #18181c 75%);
+  background-size: 200% 100%;
+}
+
+/* Premium Custom Notification Panel Styling */
+.notification-item {
+  background-color: transparent;
+}
+.notification-item:hover {
+  background-color: #F5F3EE !important;
+}
+html.dark .notification-item:hover {
+  background-color: rgba(26, 26, 26, 0.5) !important;
+}
+.notification-item.unread {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+html.dark .notification-item.unread {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+}

@@ -15,23 +15,41 @@ router.get('/', async (req, res, next) => {
     const projectId = req.params.projectId;
     const membership = req.projectMembership;
     const filter = { projectId };
-    if (membership.role !== 'ADMIN') filter.assigneeId = req.user.id;
+    if (membership.role !== 'ADMIN') {
+      filter.$or = [
+        { assigneeId: req.user.id },
+        { creatorId: req.user.id }
+      ];
+    }
 
     const tasks = await Task.find(filter)
       .populate('assigneeId', 'name email')
       .populate('creatorId', 'name email')
       .populate('blockedBy', 'status')
-      .populate('labels');
+      .populate('labels')
+      .lean();
 
     // Transform populated refs to match frontend shape
     const result = tasks.map(t => {
-      const obj = t.toJSON();
-      obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-        ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
-      obj.creator = obj.creatorId && typeof obj.creatorId === 'object'
-        ? { id: obj.creatorId.id, name: obj.creatorId.name, email: obj.creatorId.email } : null;
-      obj.assigneeId = t.assigneeId?._id?.toString() || t.assigneeId?.toString() || null;
-      obj.creatorId = t.creatorId?._id?.toString() || t.creatorId?.toString();
+      const obj = {
+        id: t._id.toString(),
+        title: t.title,
+        description: t.description,
+        dueDate: t.dueDate,
+        priority: t.priority,
+        status: t.status,
+        projectId: t.projectId?.toString(),
+        assigneeId: t.assigneeId?._id?.toString() || t.assigneeId?.toString() || null,
+        creatorId: t.creatorId?._id?.toString() || t.creatorId?.toString(),
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        labels: (t.labels || []).map(l => ({ id: l._id?.toString() || l.id, name: l.name, color: l.color, projectId: l.projectId?.toString() })),
+        blockedBy: (t.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, status: b.status }))
+      };
+      obj.assignee = t.assigneeId && typeof t.assigneeId === 'object' && t.assigneeId.name
+        ? { id: t.assigneeId._id?.toString() || t.assigneeId.id, name: t.assigneeId.name, email: t.assigneeId.email } : null;
+      obj.creator = t.creatorId && typeof t.creatorId === 'object' && t.creatorId.name
+        ? { id: t.creatorId._id?.toString() || t.creatorId.id, name: t.creatorId.name, email: t.creatorId.email } : null;
       return obj;
     });
     res.json(result);
@@ -108,7 +126,7 @@ const generateSubtasksWithAI = async (prompt) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
 
-  const systemPrompt = `You are a project management AI. Given a user's objective, break it down into 3-6 actionable subtasks.
+  const systemPrompt = `You are a project management AI. Given a user's objective, break it down into actionable subtasks. Use your judgment to decide how many subtasks are necessary to fully cover the objective (typically between 3 to 15 subtasks depending on the complexity of the objective).
 
 Rules:
 - Each task must be specific, actionable, and clear
@@ -133,7 +151,7 @@ Example output: [{"title":"Design database schema for users table with email, pa
       return tasks
         .filter(t => t.title && typeof t.title === 'string')
         .map(t => ({ title: t.title.substring(0, 120), priority: validPriorities.includes(t.priority) ? t.priority : 'MEDIUM' }))
-        .slice(0, 6);
+        .slice(0, 20);
     } catch (err) {
       console.error(`Model ${model} failed:`, err.message);
       lastError = err;
@@ -173,8 +191,8 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
       });
       const populated = await Task.findById(task.id).populate('assigneeId', 'name email');
       const obj = populated.toJSON();
-      obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-        ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
+      obj.assignee = populated.assigneeId && typeof populated.assigneeId === 'object' && populated.assigneeId.name
+        ? { id: populated.assigneeId._id?.toString() || populated.assigneeId.id, name: populated.assigneeId.name, email: populated.assigneeId.email } : null;
       obj.assigneeId = populated.assigneeId?._id?.toString() || populated.assigneeId?.toString() || null;
       createdTasks.push(obj);
 
@@ -212,8 +230,8 @@ router.post('/', requireProjectRole(['ADMIN']), validate(createTaskSchema), asyn
     });
     const populated = await Task.findById(task.id).populate('assigneeId', 'name email').populate('labels');
     const obj = populated.toJSON();
-    obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-      ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
+    obj.assignee = populated.assigneeId && typeof populated.assigneeId === 'object' && populated.assigneeId.name
+      ? { id: populated.assigneeId._id?.toString() || populated.assigneeId.id, name: populated.assigneeId.name, email: populated.assigneeId.email } : null;
     obj.assigneeId = populated.assigneeId?._id?.toString() || populated.assigneeId?.toString() || null;
 
     req.emitEvent(`project_${projectId}`, 'task_created', obj);
@@ -241,20 +259,35 @@ router.get('/:taskId', async (req, res, next) => {
       .populate('assigneeId', 'name email')
       .populate('creatorId', 'name email')
       .populate('blockedBy', 'title status')
-      .populate('labels');
+      .populate('labels')
+      .lean();
     if (!task || task.projectId.toString() !== req.params.projectId) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    if (req.projectMembership.role !== 'ADMIN' && task.assigneeId?._id?.toString() !== req.user.id) {
+    const isAssignee = task.assigneeId?._id?.toString() === req.user.id || task.assigneeId?.toString() === req.user.id;
+    const isCreator = task.creatorId?._id?.toString() === req.user.id || task.creatorId?.toString() === req.user.id;
+    if (req.projectMembership.role !== 'ADMIN' && !isAssignee && !isCreator) {
       return res.status(403).json({ error: 'Forbidden: You do not have access to this task' });
     }
-    const obj = task.toJSON();
-    obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-      ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
-    obj.creator = obj.creatorId && typeof obj.creatorId === 'object'
-      ? { id: obj.creatorId.id, name: obj.creatorId.name, email: obj.creatorId.email } : null;
-    obj.assigneeId = task.assigneeId?._id?.toString() || task.assigneeId?.toString() || null;
-    obj.creatorId = task.creatorId?._id?.toString() || task.creatorId?.toString();
+    const obj = {
+      id: task._id.toString(),
+      title: task.title,
+      description: task.description,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+      projectId: task.projectId?.toString(),
+      assigneeId: task.assigneeId?._id?.toString() || task.assigneeId?.toString() || null,
+      creatorId: task.creatorId?._id?.toString() || task.creatorId?.toString(),
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      labels: (task.labels || []).map(l => ({ id: l._id?.toString() || l.id, name: l.name, color: l.color, projectId: l.projectId?.toString() })),
+      blockedBy: (task.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title, status: b.status }))
+    };
+    obj.assignee = task.assigneeId && typeof task.assigneeId === 'object' && task.assigneeId.name
+      ? { id: task.assigneeId._id?.toString() || task.assigneeId.id, name: task.assigneeId.name, email: task.assigneeId.email } : null;
+    obj.creator = task.creatorId && typeof task.creatorId === 'object' && task.creatorId.name
+      ? { id: task.creatorId._id?.toString() || task.creatorId.id, name: task.creatorId.name, email: task.creatorId.email } : null;
     res.json(obj);
   } catch (error) { next(error); }
 });
@@ -278,7 +311,8 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     }
     const isAdmin = req.projectMembership.role === 'ADMIN';
     const isAssignee = task.assigneeId?.toString() === req.user.id;
-    if (!isAdmin && !isAssignee) return res.status(403).json({ error: 'Forbidden' });
+    const isCreator = task.creatorId?.toString() === req.user.id;
+    if (!isAdmin && !isAssignee && !isCreator) return res.status(403).json({ error: 'Forbidden' });
 
     let updateData = {};
     if (isAdmin) {
@@ -301,8 +335,8 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     const updatedTask = await Task.findByIdAndUpdate(req.params.taskId, updateData, { new: true })
       .populate('assigneeId', 'name email').populate('labels');
     const obj = updatedTask.toJSON();
-    obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-      ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
+    obj.assignee = updatedTask.assigneeId && typeof updatedTask.assigneeId === 'object' && updatedTask.assigneeId.name
+      ? { id: updatedTask.assigneeId._id?.toString() || updatedTask.assigneeId.id, name: updatedTask.assigneeId.name, email: updatedTask.assigneeId.email } : null;
     obj.assigneeId = updatedTask.assigneeId?._id?.toString() || updatedTask.assigneeId?.toString() || null;
 
     req.emitEvent(`project_${req.params.projectId}`, 'task_updated', obj);
@@ -426,6 +460,75 @@ router.post('/:taskId/comments', validate(commentSchema), async (req, res, next)
       projectId: req.params.projectId, userId: req.user.id, taskId: task.id,
     });
     res.status(201).json(obj);
+  } catch (error) { next(error); }
+});
+
+// PATCH edit comment
+router.patch('/:taskId/comments/:commentId', validate(commentSchema), async (req, res, next) => {
+  try {
+    const { taskId, commentId } = req.params;
+    const comment = await Comment.findById(commentId);
+    if (!comment || comment.taskId.toString() !== taskId) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    if (comment.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden: You can only edit your own comments' });
+    }
+
+    comment.content = req.body.content;
+    comment.isEdited = true;
+    await comment.save();
+
+    const populated = await Comment.findById(comment.id).populate('userId', 'name email');
+    const obj = populated.toJSON();
+    obj.user = { id: populated.userId._id.toString(), name: populated.userId.name, email: populated.userId.email };
+    obj.userId = populated.userId._id.toString();
+
+    // Broadcast update
+    req.emitEvent(`thread_${taskId}`, 'comment_updated', { taskId, comment: obj });
+    req.emitEvent(`project_${req.params.projectId}`, 'comment_updated', { taskId, comment: obj });
+
+    await AuditLog.create({
+      action: 'COMMENT_EDITED',
+      details: JSON.stringify({ taskId, commentId }),
+      projectId: req.params.projectId,
+      userId: req.user.id,
+      taskId,
+    });
+
+    res.json(obj);
+  } catch (error) { next(error); }
+});
+
+// DELETE comment
+router.delete('/:taskId/comments/:commentId', async (req, res, next) => {
+  try {
+    const { taskId, commentId } = req.params;
+    const comment = await Comment.findById(commentId);
+    if (!comment || comment.taskId.toString() !== taskId) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    const isAdmin = req.projectMembership.role === 'ADMIN';
+    if (comment.userId.toString() !== req.user.id && !isAdmin) {
+      return res.status(403).json({ error: 'Forbidden: You can only delete your own comments unless you are an admin' });
+    }
+
+    await Comment.findByIdAndDelete(commentId);
+
+    // Broadcast deletion
+    req.emitEvent(`thread_${taskId}`, 'comment_deleted', { taskId, commentId });
+    req.emitEvent(`project_${req.params.projectId}`, 'comment_deleted', { taskId, commentId });
+
+    await AuditLog.create({
+      action: 'COMMENT_DELETED',
+      details: JSON.stringify({ taskId, commentId }),
+      projectId: req.params.projectId,
+      userId: req.user.id,
+      taskId,
+    });
+
+    res.status(204).send();
   } catch (error) { next(error); }
 });
 

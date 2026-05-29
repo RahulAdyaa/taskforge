@@ -64,14 +64,28 @@ const createProjectSchema = z.object({
 // GET all projects for user
 router.get('/', async (req, res, next) => {
   try {
-    const memberships = await ProjectMember.find({ userId: req.user.id }).select('projectId');
+    const memberships = await ProjectMember.find({ userId: req.user.id }).select('projectId').lean();
     const projectIds = memberships.map(m => m.projectId);
-    const projects = await Project.find({ _id: { $in: projectIds } });
-    const allMembers = await ProjectMember.find({ projectId: { $in: projectIds } });
+    const projects = await Project.find({ _id: { $in: projectIds } }).lean();
+    const allMembers = await ProjectMember.find({ projectId: { $in: projectIds } }).lean();
 
     const result = projects.map(p => {
-      const pObj = p.toJSON();
-      pObj.members = allMembers.filter(m => m.projectId.toString() === p.id).map(m => m.toJSON());
+      const pObj = {
+        id: p._id.toString(),
+        name: p.name,
+        description: p.description,
+        inviteToken: p.inviteToken,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      };
+      pObj.members = allMembers
+        .filter(m => m.projectId.toString() === pObj.id)
+        .map(m => ({
+          id: m._id.toString(),
+          role: m.role,
+          userId: m.userId.toString(),
+          projectId: m.projectId.toString()
+        }));
       return pObj;
     });
     res.json(result);
@@ -136,10 +150,10 @@ router.get('/:id', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, nex
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found' });
-    const members = await ProjectMember.find({ projectId: req.params.id }).populate('userId', 'name email');
+    const members = await ProjectMember.find({ projectId: req.params.id }).populate('userId', 'name email').lean();
     const pObj = project.toJSON();
-    pObj.members = members.map(m => ({
-      id: m.id, role: m.role, userId: m.userId._id.toString(), projectId: m.projectId.toString(),
+    pObj.members = members.filter(m => m.userId).map(m => ({
+      id: m._id.toString(), role: m.role, userId: m.userId._id.toString(), projectId: m.projectId.toString(),
       user: { id: m.userId._id.toString(), name: m.userId.name, email: m.userId.email },
     }));
     res.json(pObj);
@@ -287,6 +301,10 @@ router.delete('/:id', requireProjectRole(['ADMIN']), async (req, res, next) => {
   try {
     const projectId = req.params.id;
     const taskIds = (await Task.find({ projectId }).select('_id')).map(t => t._id);
+
+    // Broadcast project deletion to all members before database deletion
+    req.emitEvent(`project_${projectId}`, 'project_deleted', { projectId });
+
     await Promise.all([
       AuditLog.deleteMany({ projectId }),
       Label.deleteMany({ projectId }),
@@ -332,11 +350,18 @@ router.delete('/:id/members/:userId', requireProjectRole(['ADMIN']), async (req,
 router.get('/:id/logs', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
   try {
     const logs = await AuditLog.find({ projectId: req.params.id })
-      .sort({ createdAt: -1 }).limit(50).populate('userId', 'name email');
-    const result = logs.map(l => {
-      const obj = l.toJSON();
-      obj.user = { name: l.userId.name, email: l.userId.email };
-      obj.userId = l.userId._id.toString();
+      .sort({ createdAt: -1 }).limit(50).populate('userId', 'name email').lean();
+    const result = logs.filter(l => l.userId).map(l => {
+      const obj = {
+        id: l._id.toString(),
+        action: l.action,
+        details: l.details,
+        projectId: l.projectId.toString(),
+        taskId: l.taskId?.toString() || null,
+        createdAt: l.createdAt,
+        user: { name: l.userId.name, email: l.userId.email },
+        userId: l.userId._id.toString(),
+      };
       return obj;
     });
     res.json(result);
@@ -369,12 +394,34 @@ const chatSchema = z.object({ message: z.string().min(1).max(1000) });
 router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatSchema), async (req, res, next) => {
   try {
     const { message } = req.body;
-    const stats = await Task.aggregate([
-      { $match: { projectId: new mongoose.Types.ObjectId(req.params.id) } },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-    ]);
-    let summary = "Project Status:\n";
-    stats.forEach(s => { summary += `- ${s._id}: ${s.count} tasks\n`; });
+
+    // Fetch project details
+    const project = await Project.findById(req.params.id);
+    const projectName = project ? project.name : 'Unknown';
+    const projectDesc = project ? (project.description || 'No description provided') : 'No description';
+
+    // Fetch tasks in this project
+    const tasks = await Task.find({ projectId: req.params.id })
+      .populate('assigneeId', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Count statistics and build summary
+    const stats = { TODO: 0, IN_PROGRESS: 0, DONE: 0 };
+    let tasksListSummary = "";
+    tasks.forEach(t => {
+      if (stats[t.status] !== undefined) {
+        stats[t.status]++;
+      }
+      tasksListSummary += `- [${t.status}] ${t.title} (Priority: ${t.priority}, Assignee: ${t.assigneeId?.name || 'Unassigned'}, Due: ${t.dueDate ? t.dueDate.toDateString() : 'None'}, ID: ${t.id})\n`;
+    });
+
+    let summary = `Project Name: ${projectName}\n`;
+    summary += `Project Description: ${projectDesc}\n\n`;
+    summary += `Project Status Counts:\n`;
+    summary += `- TODO: ${stats.TODO} tasks\n`;
+    summary += `- IN_PROGRESS: ${stats.IN_PROGRESS} tasks\n`;
+    summary += `- DONE: ${stats.DONE} tasks\n\n`;
+    summary += `Detailed Task List:\n${tasksListSummary || 'No tasks found.'}\n`;
 
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 

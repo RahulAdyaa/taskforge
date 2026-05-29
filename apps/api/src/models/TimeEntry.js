@@ -53,5 +53,6 @@ const timeEntrySchema = new mongoose.Schema(
 );
 
 timeEntrySchema.index({ taskId: 1, userId: 1 });
+timeEntrySchema.index({ userId: 1, endTime: 1 });
 
 module.exports = mongoose.model('TimeEntry', timeEntrySchema);

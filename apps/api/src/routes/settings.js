@@ -727,6 +727,24 @@ const chatSchema = z.object({ message: z.string().min(1).max(1000) });
 router.post('/chat', validate(chatSchema), async (req, res, next) => {
   try {
     const { message } = req.body;
+
+    // Fetch user's projects
+    const memberships = await ProjectMember.find({ userId: req.user.id });
+    const projectIds = memberships.map(m => m.projectId);
+    const projects = await Project.find({ _id: { $in: projectIds } });
+    
+    let projectsSummary = "Your Projects:\n";
+    projects.forEach(p => {
+      projectsSummary += `- ${p.name} (ID: ${p.id})\n`;
+    });
+
+    // Fetch user's assigned tasks
+    const tasks = await Task.find({ assigneeId: req.user.id }).populate('projectId', 'name');
+    let tasksSummary = "Your Assigned Tasks:\n";
+    tasks.forEach(t => {
+      tasksSummary += `- [${t.status}] ${t.title} (Project: ${t.projectId?.name || 'Unknown'}, Priority: ${t.priority}, Due: ${t.dueDate ? t.dueDate.toDateString() : 'None'}, ID: ${t.id})\n`;
+    });
+
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 
     if (!openRouterApiKey) {
@@ -735,13 +753,18 @@ router.post('/chat', validate(chatSchema), async (req, res, next) => {
 
     let replyText = '';
     let lastError;
-    const systemPrompt = `You are the TaskForge AI Assistant. You help users navigate the platform and answer questions about how to use TaskForge.
+    const systemPrompt = `You are the TaskForge AI Assistant. You help users navigate the platform, answer questions about how to use TaskForge, and provide updates about their projects and tasks.
 The user is ${req.user.name}.
+
+Here is the user's active workspace context:
+${projectsSummary || 'User is not currently a member of any projects.'}
+
+${tasksSummary || 'No tasks are currently assigned to the user.'}
 
 Here is the general TaskForge Help documentation for navigating/using the app:
 ${TASKFORGE_KB}
 
-Answer the user's question concisely, naturally, and helpfully in natural language using the provided documentation.`;
+Answer the user's question concisely, naturally, and helpfully in natural language using the provided workspace context and help documentation.`;
 
     for (const model of OPENROUTER_MODELS) {
       try {

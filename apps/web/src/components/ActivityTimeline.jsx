@@ -9,6 +9,8 @@ const ACTION_META = {
   TASK_UPDATED:       { label: 'Updated task',           icon: '✎', color: 'bg-blue-500' },
   TASK_DELETED:       { label: 'Deleted task',            icon: '✕', color: 'bg-red-500' },
   COMMENT_ADDED:      { label: 'Added a comment',        icon: '💬', color: 'bg-yellow-500' },
+  COMMENT_EDITED:     { label: 'Edited a comment',       icon: '✍️', color: 'bg-indigo-500' },
+  COMMENT_DELETED:    { label: 'Deleted a comment',      icon: '🗑️', color: 'bg-red-500' },
   STATUS_CHANGED:     { label: 'Changed status',         icon: '→', color: 'bg-purple-500' },
 };
 

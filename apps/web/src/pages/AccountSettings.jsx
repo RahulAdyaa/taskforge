@@ -1737,7 +1737,17 @@ export default function AccountSettings() {
               <p className="font-mono text-xs text-black/50 dark:text-[#E8E4DD]/50 uppercase tracking-widest mb-8">Activity Timeline & Logs</p>
 
               {isLoadingActivities ? (
-                <div className="font-mono text-xs animate-pulse">Retrieving activity timeline logs...</div>
+                <div className="relative border-l-2 border-[#E8E4DD] dark:border-[#2A2A2A] pl-6 ml-3 space-y-6">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="relative opacity-60">
+                      <div 
+                        className="absolute -left-[33px] top-1 w-4 h-4 rounded-full border-2 border-white dark:border-[#1A1A1A] bg-[#E8E4DD] dark:bg-zinc-700 flex items-center justify-center shadow-sm skeleton-loading"
+                      />
+                      <div className="h-4 w-1/3 rounded skeleton-loading mb-2" />
+                      <div className="h-3 w-1/2 rounded skeleton-loading" />
+                    </div>
+                  ))}
+                </div>
               ) : activities.length === 0 ? (
                 <div className="py-8 text-center font-mono text-xs text-black/50 dark:text-zinc-500 border border-dashed border-[#E8E4DD] dark:border-[#2A2A2A] rounded-2xl">
                   No activity recorded yet for this session.

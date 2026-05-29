@@ -86,5 +86,6 @@ const taskSchema = new mongoose.Schema(
 // Index for common queries
 taskSchema.index({ projectId: 1, status: 1 });
 taskSchema.index({ assigneeId: 1 });
+taskSchema.index({ creatorId: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

@@ -16,13 +16,13 @@ router.get('/', async (req, res, next) => {
 
     const result = tasks.map(t => {
       const obj = t.toJSON();
-      // Transform populated refs to match frontend shape
-      obj.project = obj.projectId && typeof obj.projectId === 'object'
-        ? { id: obj.projectId.id, name: obj.projectId.name } : null;
-      obj.assignee = obj.assigneeId && typeof obj.assigneeId === 'object'
-        ? { id: obj.assigneeId.id, name: obj.assigneeId.name, email: obj.assigneeId.email } : null;
-      obj.creator = obj.creatorId && typeof obj.creatorId === 'object'
-        ? { id: obj.creatorId.id, name: obj.creatorId.name, email: obj.creatorId.email } : null;
+      // Transform populated refs to match frontend shape using raw Mongoose document fields
+      obj.project = t.projectId && typeof t.projectId === 'object' && t.projectId.name
+        ? { id: t.projectId._id?.toString() || t.projectId.id, name: t.projectId.name } : null;
+      obj.assignee = t.assigneeId && typeof t.assigneeId === 'object' && t.assigneeId.name
+        ? { id: t.assigneeId._id?.toString() || t.assigneeId.id, name: t.assigneeId.name, email: t.assigneeId.email } : null;
+      obj.creator = t.creatorId && typeof t.creatorId === 'object' && t.creatorId.name
+        ? { id: t.creatorId._id?.toString() || t.creatorId.id, name: t.creatorId.name, email: t.creatorId.email } : null;
       obj.projectId = t.projectId?._id?.toString() || t.projectId?.toString();
       obj.assigneeId = t.assigneeId?._id?.toString() || t.assigneeId?.toString() || null;
       obj.creatorId = t.creatorId?._id?.toString() || t.creatorId?.toString();

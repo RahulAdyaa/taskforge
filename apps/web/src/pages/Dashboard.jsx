@@ -92,7 +92,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-off-white flex">
       {/* Sidebar */}
       <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
-        <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
+        <Link to="/app" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-xl border border-[#E8E4DD] text-black font-medium">
@@ -206,7 +206,11 @@ export default function Dashboard() {
         )}
 
         {isLoading ? (
-          <div className="font-mono animate-pulse">Scanning database...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <ProjectCardSkeleton key={i} />
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects?.map((project, index) => (
@@ -247,3 +251,19 @@ export default function Dashboard() {
     </div>
   );
 }
+
+function ProjectCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-[#121215] p-6 rounded-2xl border border-[#E8E4DD] dark:border-white/10 shadow-sm">
+      <div className="flex justify-between items-start mb-8">
+        <div className="h-6 w-3/4 rounded skeleton-loading" />
+        <div className="h-7 w-12 rounded-full skeleton-loading" />
+      </div>
+      <div className="flex justify-between items-center mt-4">
+        <div className="h-4 w-1/3 rounded skeleton-loading" />
+        <div className="h-4 w-10 rounded skeleton-loading" />
+      </div>
+    </div>
+  );
+}
+

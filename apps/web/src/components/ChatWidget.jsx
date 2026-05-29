@@ -14,15 +14,25 @@ export default function ChatWidget() {
   const projectMatch = pathname.match(/\/app\/projects\/([^/]+)/);
   const projectId = projectMatch && projectMatch[1] !== 'settings' ? projectMatch[1] : null;
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('tf_chat_history');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error('Failed to parse chat history from sessionStorage:', e);
+    }
+    return null;
+  }) || [
+    {
+      role: 'assistant',
+      content: 'Hi there! I am the TaskForge AI. How can I assist you with your projects, tasks, or settings?'
+    }
+  ];
 
-  // Reset messages and load appropriate greeting when projectId changes
+  // Save messages to sessionStorage whenever they change
   useEffect(() => {
-    const greeting = projectId
-      ? 'Hi there! I am the TaskForge AI. How can I assist you with this project?'
-      : 'Hi there! I am the TaskForge AI. How can I help you create projects, see the setup, or configure your settings?';
-    setMessages([{ role: 'assistant', content: greeting }]);
-  }, [projectId]);
+    sessionStorage.setItem('tf_chat_history', JSON.stringify(messages));
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

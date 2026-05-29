@@ -51,7 +51,7 @@ export default function MyTasks() {
     <div className="min-h-screen bg-off-white flex">
       {/* Sidebar */}
       <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
-        <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
+        <Link to="/app" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
           <Link to="/app/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl text-black/60 hover:text-black hover:bg-white/50 transition-all font-medium">
@@ -99,7 +99,11 @@ export default function MyTasks() {
         </div>
 
         {isLoading ? (
-          <div className="font-mono animate-pulse">Loading assignments...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <TaskCardSkeleton key={i} />
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tasks?.map(task => (
@@ -158,3 +162,26 @@ export default function MyTasks() {
     </div>
   );
 }
+
+function TaskCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-[#121215] p-6 rounded-2xl border border-[#E8E4DD] dark:border-white/10 shadow-sm flex flex-col h-56 justify-between">
+      <div className="space-y-3">
+        <div className="h-6 w-5/6 rounded skeleton-loading" />
+        <div className="h-4 w-1/2 rounded skeleton-loading" />
+      </div>
+      
+      <div className="space-y-4 pt-4 border-t border-[#E8E4DD] dark:border-white/10 mt-auto">
+        <div className="flex gap-2">
+          <div className="h-5 w-16 rounded-full skeleton-loading" />
+          <div className="h-5 w-12 rounded-full skeleton-loading" />
+        </div>
+        <div className="flex justify-between items-center text-xs">
+          <div className="h-4 w-1/3 rounded skeleton-loading" />
+          <div className="h-4 w-1/4 rounded skeleton-loading" />
+        </div>
+      </div>
+    </div>
+  );
+}
+

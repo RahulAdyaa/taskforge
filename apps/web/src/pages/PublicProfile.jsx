@@ -99,8 +99,57 @@ Generated via TaskForge
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-off-white dark:bg-[#0D0D0D] flex items-center justify-center font-mono text-xs animate-pulse">
-        Retrieving profile records...
+      <div className="min-h-screen bg-off-white dark:bg-[#0D0D0D] text-black dark:text-white py-12 px-4 transition-colors duration-300">
+        <div className="max-w-3xl mx-auto">
+          {/* Back Link Placeholder */}
+          <div className="h-4 w-28 rounded skeleton-loading mb-6 opacity-60" />
+
+          {/* Banner Placeholder */}
+          <div className="h-48 rounded-t-[2rem] border-t border-l border-r border-[#E8E4DD] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] skeleton-loading shadow-sm" />
+
+          {/* Content Panel Placeholder */}
+          <div className="bg-white dark:bg-[#1A1A1A] border-b border-l border-r border-[#E8E4DD] dark:border-[#2A2A2A] rounded-b-[2rem] p-10 shadow-2xl relative space-y-8">
+            {/* Avatar floating */}
+            <div className="absolute -top-16 left-10 w-28 h-28 rounded-2xl border-4 border-white dark:border-[#1A1A1A] bg-white dark:bg-[#1A1A1A] skeleton-loading shadow-lg" />
+
+            <div className="flex justify-end gap-3 mb-6 pt-2">
+              <div className="w-9 h-9 rounded-xl skeleton-loading" />
+              <div className="w-9 h-9 rounded-xl skeleton-loading" />
+            </div>
+
+            <div className="mt-8 mb-8 space-y-3">
+              <div className="h-9 w-1/3 rounded skeleton-loading" />
+              <div className="h-4 w-1/4 rounded skeleton-loading" />
+              <div className="h-5 w-2/3 rounded skeleton-loading" />
+              <div className="h-3 w-1/2 rounded skeleton-loading opacity-60" />
+            </div>
+
+            {/* About */}
+            <div className="border-t border-[#E8E4DD] dark:border-[#2A2A2A] pt-6 space-y-3">
+              <div className="h-4 w-24 rounded skeleton-loading" />
+              <div className="h-4 w-full rounded skeleton-loading" />
+              <div className="h-4 w-5/6 rounded skeleton-loading" />
+            </div>
+
+            {/* Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 border-t border-[#E8E4DD] dark:border-[#2A2A2A] pt-6">
+              <div className="space-y-4">
+                <div className="h-4 w-32 rounded skeleton-loading" />
+                <div className="space-y-2">
+                  <div className="h-4 w-1/2 rounded skeleton-loading" />
+                  <div className="h-4 w-2/3 rounded skeleton-loading" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="h-4 w-32 rounded skeleton-loading" />
+                <div className="space-y-2">
+                  <div className="h-4 w-1/2 rounded skeleton-loading" />
+                  <div className="h-4 w-2/3 rounded skeleton-loading" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

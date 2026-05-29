@@ -47,5 +47,6 @@ const projectMemberSchema = new mongoose.Schema(
 
 // Compound unique index — replaces Prisma's @@unique([userId, projectId])
 projectMemberSchema.index({ userId: 1, projectId: 1 }, { unique: true });
+projectMemberSchema.index({ projectId: 1 });
 
 module.exports = mongoose.model('ProjectMember', projectMemberSchema);

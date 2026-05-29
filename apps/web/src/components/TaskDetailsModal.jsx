@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 import { TaskTimeTracker } from './TimeTracker';
 import ActivityTimeline from './ActivityTimeline';
+import { useSocket } from '../context/SocketContext';
+import { Pencil, Trash2, Info, Check, X } from 'lucide-react';
 
 export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const queryClient = useQueryClient();
@@ -16,6 +18,107 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState('#E8E4DD');
   const chatEndRef = useRef(null);
+  const labelDropdownRef = useRef(null);
+
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editCommentContent, setEditCommentContent] = useState('');
+  const [infoCommentId, setInfoCommentId] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
+
+  const { data: project } = useQuery({
+    queryKey: ['project', projectId],
+    enabled: !!projectId,
+  });
+  const projectMember = project?.members?.find(m => m.user.id === user?.id);
+  const isAdmin = projectMember?.role === 'ADMIN';
+
+  const { socket, isConnected } = useSocket();
+  const [typingUsers, setTypingUsers] = useState([]);
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target)) {
+        setShowLabelDropdown(false);
+      }
+    }
+    if (showLabelDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showLabelDropdown]);
+
+  // Join/leave thread room and listen to comments
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.emit('join_thread', { taskId: task.id, projectId });
+
+    const handleNewComment = (data) => {
+      if (data.taskId === task.id) {
+        queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+          if (oldComments.some(c => c.id === data.comment.id)) {
+            return oldComments;
+          }
+          return [...oldComments, data.comment];
+        });
+      }
+    };
+
+    const handleCommentUpdated = (data) => {
+      if (data.taskId === task.id) {
+        queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+          return oldComments.map(c => c.id === data.comment.id ? data.comment : c);
+        });
+      }
+    };
+
+    const handleCommentDeleted = (data) => {
+      if (data.taskId === task.id) {
+        queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+          return oldComments.filter(c => c.id !== data.commentId);
+        });
+      }
+    };
+
+    const handleTypingStatus = (data) => {
+      if (data.taskId === task.id) {
+        setTypingUsers((prev) => {
+          if (data.isTyping) {
+            if (prev.includes(data.userName)) return prev;
+            return [...prev, data.userName];
+          } else {
+            return prev.filter(name => name !== data.userName);
+          }
+        });
+      }
+    };
+
+    socket.on('new_comment', handleNewComment);
+    socket.on('comment_updated', handleCommentUpdated);
+    socket.on('comment_deleted', handleCommentDeleted);
+    socket.on('typing_status', handleTypingStatus);
+
+    return () => {
+      socket.emit('leave_thread', { taskId: task.id });
+      socket.off('new_comment', handleNewComment);
+      socket.off('comment_updated', handleCommentUpdated);
+      socket.off('comment_deleted', handleCommentDeleted);
+      socket.off('typing_status', handleTypingStatus);
+    };
+  }, [socket, task.id, projectId, queryClient]);
+
+  // Clean up typing timers on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
     queryKey: ['comments', task.id],
@@ -59,19 +162,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const activeTask = projectTasks.find(t => t.id === task.id) || task;
   const availableTasks = projectTasks.filter(t => t.id !== activeTask.id && !activeTask.blockedBy?.find(b => b.id === t.id));
 
-  const commentMutation = useMutation({
-    mutationFn: async (content) => {
-      const { data } = await api.post(`/projects/${projectId}/tasks/${task.id}/comments`, { content });
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['comments', task.id]);
-      setNewComment('');
-    },
-    onError: (err) => {
-      toast.error('Failed to post comment');
-    }
-  });
+  // commentMutation removed (WebSockets are used for posting comments)
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -130,10 +221,74 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
     createLabelMutation.mutate({ name: newLabelName, color: newLabelColor });
   };
 
+  const handleTextareaChange = (e) => {
+    setNewComment(e.target.value);
+
+    if (!socket || !isConnected) return;
+
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket.emit('typing_start', { taskId: task.id, projectId });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      socket.emit('typing_end', { taskId: task.id, projectId });
+    }, 2000);
+  };
+
   const handleSubmitComment = (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    commentMutation.mutate(newComment);
+
+    if (!socket || !isConnected) {
+      toast.error('Cannot post comment: Not connected to server');
+      return;
+    }
+
+    socket.emit('send_message', { taskId: task.id, projectId, content: newComment });
+    
+    // Clear typing indicator status
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    isTypingRef.current = false;
+    socket.emit('typing_end', { taskId: task.id, projectId });
+
+    setNewComment('');
+  };
+
+  const handleSaveEdit = (commentId) => {
+    if (!editCommentContent.trim()) return;
+    if (socket && isConnected) {
+      socket.emit('edit_message', {
+        taskId: task.id,
+        projectId,
+        commentId,
+        content: editCommentContent,
+      });
+      setEditingCommentId(null);
+      setEditCommentContent('');
+    } else {
+      toast.error('Cannot edit comment: Not connected to server');
+    }
+  };
+
+  const handleDeleteComment = (commentId) => {
+    if (socket && isConnected) {
+      socket.emit('delete_message', {
+        taskId: task.id,
+        projectId,
+        commentId,
+      });
+      setDeletingCommentId(null);
+    } else {
+      toast.error('Cannot delete comment: Not connected to server');
+    }
   };
 
   // Auto-scroll to bottom of chat when new comments arrive
@@ -177,7 +332,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
             </span>
             <span>Status: <strong className="text-black">{task.status}</strong></span>
             <span>Assignee: <strong className="text-black">{task.assignee?.name || 'Unassigned'}</strong></span>
-            <div className="relative">
+            <div className="relative" ref={labelDropdownRef}>
               <button 
                 onClick={() => setShowLabelDropdown(!showLabelDropdown)}
                 className="flex items-center gap-1 border border-[#E8E4DD] px-2 py-0.5 rounded hover:border-black transition-colors"
@@ -261,7 +416,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
         <div className="flex-1 flex min-h-0">
           
           {/* LEFT PANEL — Task Details */}
-          <div className="w-1/2 overflow-y-auto p-6 bg-[#F5F3EE] border-r border-[#E8E4DD]">
+          <div className="flex-1 min-w-0 overflow-y-auto p-6 bg-[#F5F3EE] border-r border-[#E8E4DD]">
             {/* Description */}
             <div className="mb-6 bg-white p-5 rounded-2xl border border-[#E8E4DD] shadow-sm">
               <h3 className="font-mono text-xs text-black/40 uppercase tracking-widest mb-3">Description</h3>
@@ -335,7 +490,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
           </div>
 
           {/* RIGHT PANEL — Discussion / Chat */}
-          <div className="w-1/2 flex flex-col bg-white">
+          <div className="flex-1 min-w-0 flex flex-col bg-white">
             {/* Chat Header */}
             <div className="px-6 py-4 border-b border-[#E8E4DD] shrink-0 flex items-center justify-between bg-[#FAFAF8]">
               <h3 className="font-mono text-xs text-black/40 uppercase tracking-widest font-bold">💬 Discussion Thread</h3>
@@ -353,24 +508,166 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
                   <p className="font-mono text-xs text-black/30">No comments yet. Start the conversation!</p>
                 </div>
               )}
-              {comments.map(comment => (
-                <div key={comment.id} className={`flex gap-3 ${comment.user.id === user.id ? 'flex-row-reverse' : ''}`}>
-                  <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-display text-lg shrink-0">
-                    {comment.user.name.charAt(0)}
-                  </div>
-                  <div className={`flex flex-col ${comment.user.id === user.id ? 'items-end' : 'items-start'} max-w-[85%]`}>
-                    <div className="flex items-baseline gap-2 mb-1 px-1">
-                      <span className="font-mono text-xs font-bold">{comment.user.name}</span>
-                      <span className="font-mono text-[10px] text-black/40">{new Date(comment.createdAt).toLocaleString()}</span>
+              {comments.map(comment => {
+                const isOwn = comment.user.id === user.id;
+                const isEditing = editingCommentId === comment.id;
+                const isDeleting = deletingCommentId === comment.id;
+                const isInfoActive = infoCommentId === comment.id;
+
+                return (
+                  <div key={comment.id} className={`flex gap-3 relative group ${isOwn ? 'flex-row-reverse' : ''}`}>
+                    {/* Avatar */}
+                    <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-display text-lg shrink-0">
+                      {comment.user.name.charAt(0)}
                     </div>
-                    <div className={`p-4 rounded-2xl ${comment.user.id === user.id ? 'bg-black text-white rounded-tr-sm' : 'bg-[#F5F3EE] border border-[#E8E4DD] rounded-tl-sm'}`}>
-                      <div className={`prose prose-sm max-w-none ${comment.user.id === user.id ? 'prose-invert' : ''}`}>
-                        <ReactMarkdown>{comment.content}</ReactMarkdown>
+                    
+                    {/* Content Area */}
+                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] relative`}>
+                      {/* Name + Timestamp */}
+                      <div className="flex items-baseline gap-2 mb-1 px-1">
+                        <span className="font-mono text-xs font-bold">{comment.user.name}</span>
+                        <span className="font-mono text-[10px] text-black/40">
+                          {new Date(comment.createdAt).toLocaleString()}
+                          {comment.isEdited && (
+                            <span className="text-black/30 text-[9px] italic ml-1.5 font-sans">(edited)</span>
+                          )}
+                        </span>
                       </div>
+                      
+                      {/* Bubble */}
+                      <div className={`p-4 rounded-2xl relative ${isOwn ? 'bg-black text-white rounded-tr-sm' : 'bg-[#F5F3EE] border border-[#E8E4DD] rounded-tl-sm'} w-full`}>
+                        {isEditing ? (
+                          <div className="w-full flex flex-col gap-2 min-w-[200px]">
+                            <textarea
+                              value={editCommentContent}
+                              onChange={(e) => setEditCommentContent(e.target.value)}
+                              className="w-full bg-[#F5F3EE] dark:bg-[#1E1E24] text-black dark:text-white border border-[#E8E4DD] dark:border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-black font-sans resize-none min-h-[60px]"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSaveEdit(comment.id);
+                                } else if (e.key === 'Escape') {
+                                  setEditingCommentId(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button 
+                                onClick={() => setEditingCommentId(null)}
+                                className="px-2 py-1 border border-[#E8E4DD] dark:border-white/10 text-xs font-medium rounded-lg hover:bg-[#F5F3EE] dark:hover:bg-white/10 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                onClick={() => handleSaveEdit(comment.id)}
+                                disabled={!editCommentContent.trim()}
+                                className="px-3 py-1 bg-[#E63B2E] text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`prose prose-sm max-w-none ${isOwn ? 'prose-invert' : ''}`}>
+                            <ReactMarkdown>{comment.content}</ReactMarkdown>
+                          </div>
+                        )}
+
+                        {/* Hover Action Bar or Delete Confirm */}
+                        {!isEditing && (
+                          <>
+                            {isDeleting ? (
+                              <div className={`absolute -top-3.5 ${isOwn ? 'right-2' : 'left-2'} bg-white border border-red-200 shadow-md rounded-lg px-2 py-1 z-20 flex items-center gap-1.5 animate-[slideIn_0.1s_ease-out]`}>
+                                <span className="text-[10px] font-mono text-red-600 font-bold px-1">Delete?</span>
+                                <button 
+                                  onClick={() => handleDeleteComment(comment.id)} 
+                                  className="text-[10px] bg-[#E63B2E] text-white px-2 py-0.5 rounded font-medium hover:bg-red-700 transition-colors"
+                                >
+                                  Yes
+                                </button>
+                                <button 
+                                  onClick={() => setDeletingCommentId(null)} 
+                                  className="text-[10px] border border-[#E8E4DD] px-1.5 py-0.5 rounded text-black/50 hover:bg-[#F5F3EE] transition-colors"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <div className={`absolute -top-3.5 ${isOwn ? 'right-2' : 'left-2'} flex items-center gap-1 bg-white border border-[#E8E4DD] shadow-md rounded-lg p-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
+                                <button 
+                                  onClick={() => setInfoCommentId(isInfoActive ? null : comment.id)}
+                                  className="p-1 hover:bg-[#F5F3EE] rounded text-black/40 hover:text-black transition-colors"
+                                  title="Message Info"
+                                >
+                                  <Info className="w-3.5 h-3.5" />
+                                </button>
+                                {isOwn && (
+                                  <button 
+                                    onClick={() => {
+                                      setEditingCommentId(comment.id);
+                                      setEditCommentContent(comment.content);
+                                    }}
+                                    className="p-1 hover:bg-[#F5F3EE] rounded text-black/40 hover:text-black transition-colors"
+                                    title="Edit Message"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {(isOwn || isAdmin) && (
+                                  <button 
+                                    onClick={() => setDeletingCommentId(comment.id)}
+                                    className="p-1 hover:bg-red-50 rounded text-black/40 hover:text-[#E63B2E] transition-colors"
+                                    title="Delete Message"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Info Popover */}
+                      {isInfoActive && (
+                        <div className={`absolute top-8 ${isOwn ? 'right-0' : 'left-0'} w-64 bg-white border border-[#E8E4DD] rounded-xl shadow-xl z-30 p-4 text-left font-sans text-xs text-black animate-[slideIn_0.15s_ease-out]`}>
+                          <div className="flex justify-between items-center mb-2 border-b border-[#E8E4DD] pb-1.5">
+                            <span className="font-mono text-[9px] font-bold text-black/40 uppercase tracking-widest">Message Info</span>
+                            <button onClick={() => setInfoCommentId(null)} className="text-black/40 hover:text-black">✕</button>
+                          </div>
+                          <div className="space-y-1.5 font-mono text-[9px] text-black/60">
+                            <div><strong className="text-black/80 font-sans text-[10px]">Author:</strong> {comment.user.name}</div>
+                            <div><strong className="text-black/80 font-sans text-[10px]">Email:</strong> {comment.user.email}</div>
+                            <div className="border-t border-[#E8E4DD]/50 my-1"></div>
+                            <div><strong className="text-black/80 font-sans text-[10px]">Created:</strong> {new Date(comment.createdAt).toLocaleString()}</div>
+                            {comment.isEdited && (
+                              <div><strong className="text-black/80 font-sans text-[10px]">Edited:</strong> {new Date(comment.updatedAt).toLocaleString()}</div>
+                            )}
+                            <div className="border-t border-[#E8E4DD]/50 my-1"></div>
+                            <div><strong className="text-black/80 font-sans text-[10px]">Characters:</strong> {comment.content.length}</div>
+                            <div><strong className="text-black/80 font-sans text-[10px]">Words:</strong> {comment.content.trim().split(/\s+/).filter(Boolean).length}</div>
+                            <div className="border-t border-[#E8E4DD]/50 my-1"></div>
+                            <div className="text-[8px] text-black/30 truncate" title={comment.id}>ID: {comment.id}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                );
+              })}
+
+              {typingUsers.length > 0 && (
+                <div className="flex items-center gap-2 text-xs italic text-black/40 font-mono px-2 py-1">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-black/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span>{typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...</span>
                 </div>
-              ))}
+              )}
+
               <div ref={chatEndRef} />
             </div>
 
@@ -379,7 +676,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
               <form onSubmit={handleSubmitComment} className="flex gap-2">
                 <textarea
                   value={newComment}
-                  onChange={e => setNewComment(e.target.value)}
+                  onChange={handleTextareaChange}
                   placeholder="Write a comment... (Markdown supported)"
                   className="flex-1 bg-[#F5F3EE] border border-[#E8E4DD] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-black font-sans resize-none h-12 min-h-[48px]"
                   onKeyDown={e => {
@@ -391,7 +688,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
                 />
                 <button 
                   type="submit" 
-                  disabled={!newComment.trim() || commentMutation.isPending}
+                  disabled={!newComment.trim() || !isConnected}
                   className="bg-signal-red text-white px-6 font-medium rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed h-12"
                 >
                   Post

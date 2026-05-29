@@ -18,6 +18,7 @@ import api from './lib/axios';
 import CommandPalette from './components/CommandPalette';
 import GlobalSocket from './components/GlobalSocket';
 import { ThemeProvider } from './store/themeStore';
+import { SocketProvider } from './context/SocketContext';
 import ChatWidget from './components/ChatWidget';
 
 const ProtectedRoute = ({ children }) => {
@@ -38,7 +39,8 @@ function App() {
       }
       try {
         const { data } = await api.get('/auth/me');
-        setAuth(data, token);
+        const currentToken = localStorage.getItem('accessToken') || token;
+        setAuth(data, currentToken);
       } catch (error) {
         logout();
       } finally {
@@ -54,27 +56,29 @@ function App() {
 
   return (
     <ThemeProvider>
-      <Router>
-        <GlobalSocket />
-        <CommandPalette />
-        {isAuthenticated && <ChatWidget />}
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          
-          <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/app/my-tasks" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
-          <Route path="/app/projects/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
-          <Route path="/app/projects/:id/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/app/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
-          <Route path="/profile/:username" element={<PublicProfile />} />
-        </Routes>
-      </Router>
+      <SocketProvider>
+        <Router>
+          <GlobalSocket />
+          <CommandPalette />
+          {isAuthenticated && <ChatWidget />}
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            
+            <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/app/my-tasks" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
+            <Route path="/app/projects/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
+            <Route path="/app/projects/:id/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/app/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+            <Route path="/profile/:username" element={<PublicProfile />} />
+          </Routes>
+        </Router>
+      </SocketProvider>
     </ThemeProvider>
   );
 }

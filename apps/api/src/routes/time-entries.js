@@ -49,18 +49,19 @@ router.post('/start', async (req, res, next) => {
     }
 
     // Check if user already has a running timer on ANY task in this project
-    const projectTaskIds = (await Task.find({ projectId }).select('_id')).map(t => t._id);
     const existingActive = await TimeEntry.findOne({
       userId: req.user.id,
       endTime: null,
-      taskId: { $in: projectTaskIds },
-    }).populate('taskId', 'title');
+    }).populate('taskId', 'title projectId');
 
     if (existingActive) {
-      return res.status(400).json({
-        error: `You already have a running timer on "${existingActive.taskId.title}". Stop it first.`,
-        activeTaskId: existingActive.taskId._id.toString(),
-      });
+      const activeProjectTask = existingActive.taskId;
+      if (activeProjectTask && activeProjectTask.projectId.toString() === projectId) {
+        return res.status(400).json({
+          error: `You already have a running timer on "${activeProjectTask.title}". Stop it first.`,
+          activeTaskId: activeProjectTask._id.toString(),
+        });
+      }
     }
 
     const entry = await TimeEntry.create({ taskId, userId: req.user.id });

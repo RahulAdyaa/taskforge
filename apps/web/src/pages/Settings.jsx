@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Trash2, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,14 +10,23 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('MEMBER');
+  const navigate = useNavigate();
 
-  const { data: project } = useQuery({
+  const { data: project, isLoading: isProjectLoading, error: projectError } = useQuery({
     queryKey: ['project', id],
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}`);
       return data;
-    }
+    },
+    retry: false
   });
+
+  useEffect(() => {
+    if (projectError) {
+      toast.error('Project not found or access denied.');
+      navigate('/app');
+    }
+  }, [projectError, navigate]);
 
   const addMemberMutation = useMutation({
     mutationFn: async (data) => {
@@ -55,7 +64,11 @@ export default function Settings() {
         </Link>
         <div>
           <h1 className="font-sans font-bold text-xl">Project Settings</h1>
-          <p className="font-mono text-xs text-black/50">{project?.name}</p>
+          {isProjectLoading ? (
+            <div className="h-4 w-32 rounded skeleton-loading mt-1" />
+          ) : (
+            <p className="font-mono text-xs text-black/50">{project?.name}</p>
+          )}
         </div>
       </header>
 
@@ -93,28 +106,42 @@ export default function Settings() {
 
           <div className="space-y-4">
             <h3 className="font-sans font-bold text-lg mb-4">Current Personnel</h3>
-            {project?.members?.map(m => (
-              <div key={m.user.id} className="flex items-center justify-between p-4 bg-off-white rounded-xl border border-[#E8E4DD]">
-                <div className="flex flex-col">
-                  <span className="font-sans font-medium">{m.user.name}</span>
-                  <span className="font-mono text-xs text-black/60">{m.user.email}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className={`font-mono text-xs px-2 py-1 rounded ${m.role === 'ADMIN' ? 'bg-signal-red/10 text-signal-red' : 'bg-black/10 text-black'}`}>
-                    {m.role}
-                  </span>
-                  <button 
-                    onClick={() => {
-                      if(confirm('Revoke access for this personnel?')) removeMemberMutation.mutate(m.user.id);
-                    }}
-                    className="p-2 text-black/40 hover:text-signal-red transition-colors"
-                    title="Revoke Access"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+            {isProjectLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-off-white dark:bg-[#1A1A1A] rounded-xl border border-[#E8E4DD] dark:border-white/10 opacity-70">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-5 w-1/4 rounded skeleton-loading" />
+                      <div className="h-4 w-1/3 rounded skeleton-loading" />
+                    </div>
+                    <div className="w-16 h-6 rounded skeleton-loading" />
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              project?.members?.map(m => (
+                <div key={m.user.id} className="flex items-center justify-between p-4 bg-off-white rounded-xl border border-[#E8E4DD]">
+                  <div className="flex flex-col">
+                    <span className="font-sans font-medium">{m.user.name}</span>
+                    <span className="font-mono text-xs text-black/60">{m.user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`font-mono text-xs px-2 py-1 rounded ${m.role === 'ADMIN' ? 'bg-signal-red/10 text-signal-red' : 'bg-black/10 text-black'}`}>
+                      {m.role}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        if(confirm('Revoke access for this personnel?')) removeMemberMutation.mutate(m.user.id);
+                      }}
+                      className="p-2 text-black/40 hover:text-signal-red transition-colors"
+                      title="Revoke Access"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </main>

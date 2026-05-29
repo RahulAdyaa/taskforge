@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { MousePointer2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('');
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -97,15 +99,22 @@ const Navbar = () => {
           )}
         </a>
       </div>
-      <Link to="/login" className="btn-brutal bg-black dark:bg-zinc-100 text-white dark:text-black px-6 py-2 rounded-full font-sans text-sm font-medium">
-        <span className="relative z-10">Login</span>
-      </Link>
+      {isAuthenticated ? (
+        <Link to="/app" className="btn-brutal bg-signal-red text-white px-6 py-2 rounded-full font-sans text-sm font-medium animate-pulse">
+          <span className="relative z-10">Dashboard</span>
+        </Link>
+      ) : (
+        <Link to="/login" className="btn-brutal bg-black dark:bg-zinc-100 text-white dark:text-black px-6 py-2 rounded-full font-sans text-sm font-medium">
+          <span className="relative z-10">Login</span>
+        </Link>
+      )}
     </nav>
   );
 };
 
 const Hero = () => {
   const containerRef = useRef(null);
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -135,9 +144,15 @@ const Hero = () => {
         </div>
         <h1 className="hero-text font-sans font-extrabold text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-tight mb-2 text-white">Command the</h1>
         <h2 className="hero-text font-cursive italic text-7xl md:text-9xl lg:text-[11rem] leading-none mb-12 text-white drop-shadow-md">Workflow.</h2>
-        <Link to="/signup" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
-          <span className="relative z-10">Start Managing Free</span>
-        </Link>
+        {isAuthenticated ? (
+          <Link to="/app" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
+            <span className="relative z-10">Go to Dashboard</span>
+          </Link>
+        ) : (
+          <Link to="/signup" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
+            <span className="relative z-10">Start Managing Free</span>
+          </Link>
+        )}
       </div>
     </section>
   );

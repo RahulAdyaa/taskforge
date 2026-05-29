@@ -85,32 +85,15 @@ let io;
 
 if (!process.env.VERCEL) {
   const http = require('http');
-  const { Server } = require('socket.io');
+  const { initSockets } = require('./lib/sockets');
 
   server = http.createServer(app);
-  io = new Server(server, {
-    cors: {
-      origin: allowedOrigins,
-      credentials: true,
-    },
-  });
+  io = initSockets(server, allowedOrigins);
 
   // Pass io to routes via req
   app.use((req, res, next) => {
     req.io = io;
     next();
-  });
-
-  io.on('connection', (socket) => {
-    socket.on('register_user', (userId) => {
-      socket.join(`user_${userId}`);
-    });
-    socket.on('join_project', (projectId) => {
-      socket.join(`project_${projectId}`);
-    });
-    socket.on('leave_project', (projectId) => {
-      socket.leave(`project_${projectId}`);
-    });
   });
 }
 

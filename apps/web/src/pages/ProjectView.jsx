@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,75 +10,80 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import NotificationBell from '../components/NotificationBell';
 import TaskFilters, { applyFilters } from '../components/TaskFilters';
 import ThemeToggle from '../components/ThemeToggle';
+import { useSocket } from '../context/SocketContext';
 
-// Check if WebSocket is available
 const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
 
 export default function ProjectView() {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const user = useAuthStore(state => state.user);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'dashboard'
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
-  const socketRef = useRef(null);
+  
+  const { socket, isConnected, onlineUsers } = useSocket();
 
   useEffect(() => {
-    if (WS_URL) {
-      // Use WebSocket when available (local dev)
-      import('socket.io-client').then(({ io }) => {
-        const socket = io(WS_URL, { withCredentials: true });
-        socketRef.current = socket;
+    if (!socket) return;
 
-        socket.on('connect', () => {
-          setIsConnected(true);
-          socket.emit('join_project', id);
-        });
+    socket.emit('join_project', id);
 
-        socket.on('disconnect', () => {
-          setIsConnected(false);
-        });
-
-        socket.on('task_created', () => {
-          queryClient.invalidateQueries({ queryKey: ['tasks', id] });
-          queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
-          queryClient.invalidateQueries({ queryKey: ['logs', id] });
-        });
-
-        socket.on('task_updated', () => {
-          queryClient.invalidateQueries({ queryKey: ['tasks', id] });
-          queryClient.invalidateQueries({ queryKey: ['dashboard', id] });
-          queryClient.invalidateQueries({ queryKey: ['logs', id] });
-        });
-
-        socket.on('comment_added', (data) => {
-          if (data?.taskId) {
-            queryClient.invalidateQueries({ queryKey: ['comments', data.taskId] });
-          }
-        });
+    const handleTaskCreated = (newTask) => {
+      queryClient.setQueryData(['tasks', id], (oldTasks = []) => {
+        if (oldTasks.some(t => t.id === newTask.id)) return oldTasks;
+        return [...oldTasks, newTask];
       });
-    }
+    };
+    const handleTaskUpdated = (updatedTask) => {
+      queryClient.setQueryData(['tasks', id], (oldTasks = []) => {
+        return oldTasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+      });
+      // Invalidate dashboard/logs
+      queryClient.invalidateQueries(['dashboard', id]);
+      queryClient.invalidateQueries(['logs', id]);
+    };
+    const handleCommentAdded = () => {
+      queryClient.invalidateQueries(['logs', id]);
+    };
+    const handleProjectDeleted = () => {
+      toast.error('This project has been deleted.');
+      navigate('/app');
+    };
+
+    socket.on('task_created', handleTaskCreated);
+    socket.on('task_updated', handleTaskUpdated);
+    socket.on('comment_added', handleCommentAdded);
+    socket.on('project_deleted', handleProjectDeleted);
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.emit('leave_project', id);
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      socket.emit('leave_project', id);
+      socket.off('task_created', handleTaskCreated);
+      socket.off('task_updated', handleTaskUpdated);
+      socket.off('comment_added', handleCommentAdded);
+      socket.off('project_deleted', handleProjectDeleted);
     };
-  }, [id, queryClient]);
+  }, [socket, id, queryClient, navigate]);
 
-  const { data: project } = useQuery({
+  const { data: project, isLoading: isProjectLoading, error: projectError } = useQuery({
     queryKey: ['project', id],
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}`);
       return data;
-    }
+    },
+    retry: false
   });
 
-  const { data: dashboardData } = useQuery({
+  useEffect(() => {
+    if (projectError) {
+      toast.error('Project not found or access denied.');
+      navigate('/app');
+    }
+  }, [projectError, navigate]);
+
+  const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
     queryKey: ['dashboard', id],
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}/dashboard`);
@@ -88,7 +93,7 @@ export default function ProjectView() {
     refetchInterval: WS_URL ? false : 15000, // Poll every 15s when no WebSocket
   });
 
-  const { data: logsData } = useQuery({
+  const { data: logsData, isLoading: isLogsLoading } = useQuery({
     queryKey: ['logs', id],
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}/logs`);
@@ -97,7 +102,7 @@ export default function ProjectView() {
     enabled: activeTab === 'terminal'
   });
 
-  const { data: tasks } = useQuery({
+  const { data: tasks, isLoading: isTasksLoading } = useQuery({
     queryKey: ['tasks', id],
     queryFn: async () => {
       const { data } = await api.get(`/projects/${id}/tasks`);
@@ -140,6 +145,42 @@ export default function ProjectView() {
     { name: 'Done', value: dashboardData.byStatus.DONE },
   ] : [];
 
+  if (isProjectLoading) {
+    return (
+      <div className="min-h-screen bg-off-white flex flex-col">
+        {/* Header */}
+        <header className="bg-white border-b border-[#E8E4DD] px-8 py-4 flex items-center justify-between z-10 sticky top-0">
+          <div className="flex items-center gap-6">
+            <Link to="/app" className="p-2 hover:bg-off-white rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <h1 className="font-sans font-bold text-xl">&nbsp;</h1>
+              <p className="font-mono text-xs text-black/50">
+                PROJECT_ID: {id.slice(0,8)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-4 border-signal-red/20 animate-ping"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-signal-red border-r-signal-red animate-spin"></div>
+            </div>
+            <p className="font-mono text-sm text-black/60 dark:text-white/60 animate-pulse">Initializing Board...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-off-white flex flex-col">
       {/* Header */}
@@ -150,7 +191,9 @@ export default function ProjectView() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="font-sans font-bold text-xl">{project?.name || 'Loading...'}</h1>
+              <h1 className="font-sans font-bold text-xl">
+                {project?.name || 'Unknown Project'}
+              </h1>
               {isConnected && (
                 <div className="flex items-center gap-1 bg-[#E63B2E]/10 px-2 py-0.5 rounded border border-[#E63B2E]/20">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#E63B2E] animate-pulse"></div>
@@ -172,6 +215,33 @@ export default function ProjectView() {
         </div>
         
         <div className="flex items-center gap-4">
+          {/* Real-time Project Members Presence */}
+          <div className="flex items-center -space-x-2 mr-2">
+            {project?.members?.map((member) => {
+              const isOnline = onlineUsers.has(member.user.id);
+              const initials = member.user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+              return (
+                <div 
+                  key={member.user.id} 
+                  className="relative group cursor-pointer"
+                  title={`${member.user.name} (${member.role}) - ${isOnline ? 'Online' : 'Offline'}`}
+                >
+                  <div className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-mono font-bold transition-all ${
+                    isOnline 
+                      ? 'bg-black text-white font-bold border-black' 
+                      : 'bg-[#E8E4DD] text-black/50 border-white'
+                  }`}>
+                    {initials}
+                  </div>
+                  {/* Status dot */}
+                  <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    isOnline ? 'bg-green-500' : 'bg-gray-400'
+                  }`} />
+                </div>
+              );
+            })}
+          </div>
+
           <div className="flex bg-[#F5F3EE] p-1 rounded-xl border border-[#E8E4DD]">
             <button 
               onClick={() => setActiveTab('kanban')}
@@ -249,7 +319,7 @@ export default function ProjectView() {
               onFilterChange={setFilters}
             />
             <div className="flex-1 overflow-hidden">
-              <KanbanBoard projectId={id} tasks={applyFilters(tasks, filters)} isAdmin={isAdmin} members={project?.members || []} labels={labels || []} />
+              <KanbanBoard projectId={id} tasks={applyFilters(tasks, filters)} isAdmin={isAdmin} members={project?.members || []} labels={labels || []} isLoading={isTasksLoading} />
             </div>
           </>
         )}
@@ -261,42 +331,70 @@ export default function ProjectView() {
                 <div className="text-[#E8E4DD]/50 text-xs">V 1.0.4 - LIVE</div>
               </div>
               <div className="space-y-4">
-                {logsData?.length === 0 && (
-                  <div className="text-[#E8E4DD]/50 italic">No activity detected.</div>
-                )}
-                {logsData?.map(log => (
-                  <div key={log.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-[#1A1A1A] rounded border border-[#E8E4DD]/10 hover:border-[#E63B2E]/50 transition-colors">
-                    <div className="text-[#E63B2E] w-48 shrink-0">
-                      {new Date(log.createdAt).toLocaleString()}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-[#E8E4DD] text-[#111111] px-2 py-0.5 rounded text-xs font-bold">{log.action}</span>
-                        <span className="text-[#E8E4DD]/50">by</span>
-                        <span className="text-white">{log.user.name}</span>
+                {isLogsLoading ? (
+                  [...Array(4)].map((_, i) => (
+                    <div key={i} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-[#1A1A1A] rounded border border-[#E8E4DD]/10 opacity-70">
+                      <div className="w-48 shrink-0 h-5 rounded skeleton-loading opacity-20" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-5 w-1/3 rounded skeleton-loading opacity-20" />
+                        <div className="h-12 w-full rounded skeleton-loading opacity-10" />
                       </div>
-                      {log.details && (
-                        <div className="text-[#E8E4DD]/70 text-xs mt-2 bg-[#111111] p-3 rounded overflow-x-auto border border-[#E8E4DD]/10">
-                          {log.details}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : logsData?.length === 0 ? (
+                  <div className="text-[#E8E4DD]/50 italic">No activity detected.</div>
+                ) : (
+                  logsData?.map(log => (
+                    <div key={log.id} className="flex flex-col md:flex-row md:items-start gap-4 p-4 bg-[#1A1A1A] rounded border border-[#E8E4DD]/10 hover:border-[#E63B2E]/50 transition-colors">
+                      <div className="text-[#E63B2E] w-48 shrink-0">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="bg-[#E8E4DD] text-[#111111] px-2 py-0.5 rounded text-xs font-bold">{log.action}</span>
+                          <span className="text-[#E8E4DD]/50">by</span>
+                          <span className="text-white">{log.user.name}</span>
+                        </div>
+                        {log.details && (
+                          <div className="text-[#E8E4DD]/70 text-xs mt-2 bg-[#111111] p-3 rounded overflow-x-auto border border-[#E8E4DD]/10">
+                            {log.details}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
         )}
         {activeTab === 'dashboard' && (
           <div className="p-6 md:p-8 overflow-y-auto h-full space-y-6">
-            
-            {/* KPI Summary Cards - Row 1 (visible to everyone) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard title="Total Tasks" value={dashboardData?.totalTasks || 0} />
-              <StatCard title="Completed" value={dashboardData?.byStatus?.DONE || 0} accent />
-              <StatCard title="In Progress" value={dashboardData?.byStatus?.IN_PROGRESS || 0} />
-              <StatCard title="Overdue" value={dashboardData?.overdue || 0} isAlert />
-            </div>
+            {isDashboardLoading ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="bg-white dark:bg-[#121215] p-5 rounded-2xl border border-[#E8E4DD] dark:border-white/10 shadow-sm space-y-3">
+                      <div className="h-3 w-1/2 rounded skeleton-loading" />
+                      <div className="h-10 w-2/3 rounded skeleton-loading" />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-64 rounded-2xl border border-[#E8E4DD] dark:border-white/10 bg-white dark:bg-[#121215] p-6 space-y-4">
+                  <div className="h-6 w-1/4 rounded skeleton-loading" />
+                  <div className="h-2 w-full rounded skeleton-loading" />
+                  <div className="h-36 w-full rounded skeleton-loading" />
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* KPI Summary Cards - Row 1 (visible to everyone) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <StatCard title="Total Tasks" value={dashboardData?.totalTasks || 0} />
+                  <StatCard title="Completed" value={dashboardData?.byStatus?.DONE || 0} accent />
+                  <StatCard title="In Progress" value={dashboardData?.byStatus?.IN_PROGRESS || 0} />
+                  <StatCard title="Overdue" value={dashboardData?.overdue || 0} isAlert />
+                </div>
 
             {/* KPI Summary Cards - Row 2 (Admin only) */}
             {isAdmin && (
@@ -525,7 +623,8 @@ export default function ProjectView() {
                 })()}
               </div>
             )}
-
+              </>
+            )}
           </div>
         )}
       </main>
