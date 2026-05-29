@@ -162,7 +162,55 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const activeTask = projectTasks.find(t => t.id === task.id) || task;
   const availableTasks = projectTasks.filter(t => t.id !== activeTask.id && !activeTask.blockedBy?.find(b => b.id === t.id));
 
-  // commentMutation removed (WebSockets are used for posting comments)
+  // REST API fallbacks for comments (used when WebSockets are disconnected, e.g. on Vercel)
+  const postCommentMutation = useMutation({
+    mutationFn: async (content) => {
+      const { data } = await api.post(`/projects/${projectId}/tasks/${task.id}/comments`, { content });
+      return data;
+    },
+    onSuccess: (newCommentData) => {
+      queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+        return [...oldComments, newCommentData];
+      });
+      setNewComment('');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to post comment');
+    }
+  });
+
+  const editCommentMutation = useMutation({
+    mutationFn: async ({ commentId, content }) => {
+      const { data } = await api.patch(`/projects/${projectId}/tasks/${task.id}/comments/${commentId}`, { content });
+      return { commentId, data };
+    },
+    onSuccess: ({ commentId, data }) => {
+      queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+        return oldComments.map(c => c.id === commentId ? data : c);
+      });
+      setEditingCommentId(null);
+      setEditCommentContent('');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to edit comment');
+    }
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId) => {
+      await api.delete(`/projects/${projectId}/tasks/${task.id}/comments/${commentId}`);
+      return commentId;
+    },
+    onSuccess: (commentId) => {
+      queryClient.setQueryData(['comments', task.id], (oldComments = []) => {
+        return oldComments.filter(c => c.id !== commentId);
+      });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to delete comment');
+    }
+  });
+
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -246,7 +294,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
     if (!newComment.trim()) return;
 
     if (!socket || !isConnected) {
-      toast.error('Cannot post comment: Not connected to server');
+      postCommentMutation.mutate(newComment);
       return;
     }
 
@@ -274,7 +322,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
       setEditingCommentId(null);
       setEditCommentContent('');
     } else {
-      toast.error('Cannot edit comment: Not connected to server');
+      editCommentMutation.mutate({ commentId, content: editCommentContent });
     }
   };
 
@@ -287,7 +335,8 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
       });
       setDeletingCommentId(null);
     } else {
-      toast.error('Cannot delete comment: Not connected to server');
+      deleteCommentMutation.mutate(commentId);
+      setDeletingCommentId(null);
     }
   };
 
