@@ -33,3 +33,5 @@ Thumbs.db
 .vercel
 .env.vercel
 
+# Local scratch files
+scratch/last-otp.txt

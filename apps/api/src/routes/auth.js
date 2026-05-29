@@ -383,6 +383,22 @@ router.post('/forgot-password', async (req, res, next) => {
 
     await user.save();
 
+    // Log OTP to console in development mode
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔑 [DEV OTP] Generated verification code for ${user.email}: ${otp}`);
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const scratchDir = path.join(__dirname, '../../../../scratch');
+        if (!fs.existsSync(scratchDir)) {
+          fs.mkdirSync(scratchDir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(scratchDir, 'last-otp.txt'), otp, 'utf8');
+      } catch (err) {
+        console.error('Failed to write dev OTP to scratch file:', err);
+      }
+    }
+
     // Send OTP via actual mail transporter (SMTP or Ethereal test mailer)
     await sendResetOtpEmail(user.email, user.name, otp);
 
