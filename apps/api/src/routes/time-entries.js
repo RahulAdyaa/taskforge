@@ -33,7 +33,24 @@ router.get('/', async (req, res, next) => {
 
     const activeEntry = result.find(e => !e.endTime && e.userId === req.user.id) || null;
 
-    res.json({ entries: result, totalSeconds, activeEntry });
+    // Check if other users have active timers on this task (available to Admin only)
+    let otherActiveEntries = [];
+    if (req.projectMembership && req.projectMembership.role === 'ADMIN') {
+      otherActiveEntries = result
+        .filter(e => !e.endTime && e.userId !== req.user.id)
+        .map(e => ({
+          id: e.id || e._id?.toString(),
+          startTime: e.startTime,
+          user: e.user,
+        }));
+    }
+
+    res.json({ 
+      entries: result, 
+      totalSeconds, 
+      activeEntry,
+      otherActiveEntries
+    });
   } catch (error) {
     next(error);
   }

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Square, Clock, Pause } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
+import { useSocket } from '../context/SocketContext';
 
 export function formatDuration(totalSeconds) {
   const h = Math.floor(totalSeconds / 3600);
@@ -16,26 +17,45 @@ export function formatDuration(totalSeconds) {
 // Compact timer for KanbanBoard task cards
 export function TaskCardTimer({ taskId, projectId }) {
   const queryClient = useQueryClient();
+  const { socket } = useSocket();
   const [timerData, setTimerData] = useState(null);
   const [elapsed, setElapsed] = useState(0);
+  const [otherElapsed, setOtherElapsed] = useState(0);
   const intervalRef = useRef(null);
+
+  const fetchTimer = async () => {
+    try {
+      const { data } = await api.get(`/projects/${projectId}/tasks/${taskId}/time-entries`);
+      setTimerData(data);
+      if (data.activeEntry) {
+        const startMs = new Date(data.activeEntry.startTime).getTime();
+        setElapsed(Math.floor((Date.now() - startMs) / 1000));
+      }
+    } catch (err) {
+      // silently fail on card-level fetches
+    }
+  };
 
   // Fetch time entries for this task
   useEffect(() => {
-    const fetchTimer = async () => {
-      try {
-        const { data } = await api.get(`/projects/${projectId}/tasks/${taskId}/time-entries`);
-        setTimerData(data);
-        if (data.activeEntry) {
-          const startMs = new Date(data.activeEntry.startTime).getTime();
-          setElapsed(Math.floor((Date.now() - startMs) / 1000));
-        }
-      } catch (err) {
-        // silently fail on card-level fetches
-      }
-    };
     fetchTimer();
   }, [taskId, projectId]);
+
+  // Listen to live WebSocket events to synchronize timer state
+  useEffect(() => {
+    if (!socket) return;
+    const handleTimerEvent = (data) => {
+      if (data.taskId === taskId) {
+        fetchTimer();
+      }
+    };
+    socket.on('timer_started', handleTimerEvent);
+    socket.on('timer_stopped', handleTimerEvent);
+    return () => {
+      socket.off('timer_started', handleTimerEvent);
+      socket.off('timer_stopped', handleTimerEvent);
+    };
+  }, [socket, taskId]);
 
   // Live ticking clock when timer is active
   useEffect(() => {
@@ -49,6 +69,23 @@ export function TaskCardTimer({ taskId, projectId }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [timerData?.activeEntry]);
+
+  // Live ticking clock for other members' timers
+  const otherActive = timerData?.otherActiveEntries?.[0];
+  useEffect(() => {
+    let otherInterval;
+    if (otherActive) {
+      const tick = () => {
+        const startMs = new Date(otherActive.startTime).getTime();
+        setOtherElapsed(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+      };
+      tick();
+      otherInterval = setInterval(tick, 1000);
+    }
+    return () => {
+      if (otherInterval) clearInterval(otherInterval);
+    };
+  }, [otherActive]);
 
   const startMutation = useMutation({
     mutationFn: () => api.post(`/projects/${projectId}/tasks/${taskId}/time-entries/start`),
@@ -93,6 +130,14 @@ export function TaskCardTimer({ taskId, projectId }) {
             {formatDuration(elapsed)}
           </span>
         </>
+      ) : otherActive ? (
+        <div 
+          className="flex items-center gap-1 bg-[#E63B2E]/10 border border-[#E63B2E]/20 text-[#E63B2E] px-1.5 py-0.5 rounded text-[9px] font-mono font-bold animate-pulse" 
+          title={`${otherActive.user.name} is currently tracking time`}
+        >
+          <Clock className="w-2.5 h-2.5" />
+          <span>{otherActive.user.name.split(' ')[0]}: {formatDuration(otherElapsed)}</span>
+        </div>
       ) : (
         <>
           <button
@@ -117,8 +162,10 @@ export function TaskCardTimer({ taskId, projectId }) {
 // Full timer panel for TaskDetailsModal
 export function TaskTimeTracker({ taskId, projectId }) {
   const queryClient = useQueryClient();
+  const { socket } = useSocket();
   const [timerData, setTimerData] = useState(null);
   const [elapsed, setElapsed] = useState(0);
+  const [otherElapsed, setOtherElapsed] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [accumulatedTime, setAccumulatedTime] = useState(0);
@@ -144,6 +191,22 @@ export function TaskTimeTracker({ taskId, projectId }) {
     fetchTimer();
   }, [taskId, projectId]);
 
+  // Listen to live WebSocket events to synchronize timer state
+  useEffect(() => {
+    if (!socket) return;
+    const handleTimerEvent = (data) => {
+      if (data.taskId === taskId) {
+        fetchTimer();
+      }
+    };
+    socket.on('timer_started', handleTimerEvent);
+    socket.on('timer_stopped', handleTimerEvent);
+    return () => {
+      socket.off('timer_started', handleTimerEvent);
+      socket.off('timer_stopped', handleTimerEvent);
+    };
+  }, [socket, taskId]);
+
   useEffect(() => {
     if (timerData?.activeEntry) {
       intervalRef.current = setInterval(() => {
@@ -155,6 +218,23 @@ export function TaskTimeTracker({ taskId, projectId }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [timerData?.activeEntry]);
+
+  // Live ticking clock for other members' timers
+  const otherActive = timerData?.otherActiveEntries?.[0];
+  useEffect(() => {
+    let otherInterval;
+    if (otherActive) {
+      const tick = () => {
+        const startMs = new Date(otherActive.startTime).getTime();
+        setOtherElapsed(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+      };
+      tick();
+      otherInterval = setInterval(tick, 1000);
+    }
+    return () => {
+      if (otherInterval) clearInterval(otherInterval);
+    };
+  }, [otherActive]);
 
   const startMutation = useMutation({
     mutationFn: () => api.post(`/projects/${projectId}/tasks/${taskId}/time-entries/start`),
@@ -195,6 +275,7 @@ export function TaskTimeTracker({ taskId, projectId }) {
 
   const isRunning = !!timerData?.activeEntry;
   const totalLogged = timerData?.totalSeconds || 0;
+  const otherRunningTime = otherActive ? otherElapsed : 0;
 
   const displayTime = isRunning 
     ? accumulatedTime + elapsed 
@@ -220,12 +301,19 @@ export function TaskTimeTracker({ taskId, projectId }) {
           <span className="font-mono text-xs uppercase tracking-widest text-black/50 dark:text-white/50 font-bold">Time Tracker</span>
         </div>
         <div className="font-mono text-xs text-black/40 dark:text-white/40">
-          Total: <strong className="text-black dark:text-white">{formatDuration(totalLogged + (isRunning ? elapsed : isPaused ? accumulatedTime : 0))}</strong>
+          Total: <strong className="text-black dark:text-white">{formatDuration(totalLogged + (isRunning ? elapsed : isPaused ? accumulatedTime : otherRunningTime))}</strong>
         </div>
       </div>
 
       {/* Live Timer Display */}
       <div className="p-6 text-center bg-white dark:bg-[#141414]">
+        {otherActive && (
+          <div className="mb-4 p-3 bg-[#E63B2E]/5 border border-[#E63B2E]/20 text-[#E63B2E] rounded-xl text-xs font-mono font-bold animate-pulse flex items-center justify-center gap-2">
+            <Clock className="w-4 h-4" />
+            <span>{otherActive.user.name} is currently tracking time: {formatDuration(otherElapsed)}</span>
+          </div>
+        )}
+
         <div className={`font-display text-5xl tabular-nums mb-4 ${(isRunning || isPaused) ? 'text-[#E63B2E]' : 'text-black/20 dark:text-white/20'}`}>
           {isRunning || isPaused ? formatDuration(displayTime) : '0m 00s'}
         </div>
@@ -276,6 +364,7 @@ export function TaskTimeTracker({ taskId, projectId }) {
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}
               className="inline-flex items-center gap-2 bg-black dark:bg-[#E8E4DD] text-white dark:text-black px-6 py-3 rounded-xl font-medium hover:bg-[#E63B2E] dark:hover:bg-[#E63B2E] dark:hover:text-white transition-colors disabled:opacity-50"
+              style={{ display: otherActive ? 'none' : 'inline-flex' }}
             >
               <Play className="w-4 h-4 fill-current dark:fill-black" />
               Start Timer
