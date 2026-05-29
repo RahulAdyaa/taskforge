@@ -41,8 +41,9 @@ async function recordSession(user, req, isSuccess = true) {
     browser: `${browser} on ${device === 'Mobile Device' ? 'Mobile' : 'Desktop'}`
   });
 
+  let sessionId = null;
   if (isSuccess) {
-    const sessionId = crypto.randomBytes(16).toString('hex');
+    sessionId = crypto.randomBytes(16).toString('hex');
     user.activeSessions.push({
       id: sessionId,
       device: `${device} (${browser})`,
@@ -57,6 +58,7 @@ async function recordSession(user, req, isSuccess = true) {
   }
 
   await user.save();
+  return sessionId;
 }
 
 const signupSchema = z.object({
@@ -102,9 +104,9 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
     });
 
     // Record session
-    await recordSession(user, req, true);
+    const sessionId = await recordSession(user, req, true);
 
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -158,9 +160,9 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     }
 
     // Record session
-    await recordSession(user, req, true);
+    const sessionId = await recordSession(user, req, true);
 
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -182,22 +184,52 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
 
 router.post('/refresh', async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
+    const token = req.cookies.refreshToken;
+    if (!token) {
       return res.status(401).json({ error: 'No refresh token provided' });
     }
 
-    const payload = verifyRefreshToken(refreshToken);
-    const { accessToken } = generateTokens(payload.userId);
+    const payload = verifyRefreshToken(token);
+    
+    // Validate user still exists
+    const user = await User.findById(payload.userId);
+    if (!user) {
+      return res.status(401).json({ error: 'User no longer exists' });
+    }
+
+    // Verify session is still active
+    if (payload.sessionId) {
+      const isSessionActive = user.activeSessions.some(s => s.id === payload.sessionId);
+      if (!isSessionActive) {
+        return res.status(401).json({ error: 'Session has been revoked or expired' });
+      }
+    }
+
+    // Perform Refresh Token Rotation (RTR): generate new access AND refresh tokens
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user.id, payload.sessionId);
+
+    // Set rotated refresh token cookie
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
 
     res.json({ accessToken });
   } catch (error) {
-    res.status(401).json({ error: 'Invalid refresh token' });
+    res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('refreshToken');
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  });
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -243,9 +275,9 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     }
 
     // Record session
-    await recordSession(user, req, true);
+    const sessionId = await recordSession(user, req, true);
 
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,

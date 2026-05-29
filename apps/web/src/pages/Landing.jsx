@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { MousePointer2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import UserLanding from './UserLanding';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -411,6 +412,12 @@ const Footer = () => {
 };
 
 export default function Landing() {
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+
+  if (isAuthenticated) {
+    return <UserLanding />;
+  }
+
   return (
     <div className="min-h-screen bg-off-white">
       <Navbar />

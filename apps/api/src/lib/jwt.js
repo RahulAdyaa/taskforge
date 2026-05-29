@@ -7,9 +7,9 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production';
 
-const generateTokens = (userId) => {
-  const accessToken = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ userId }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+const generateTokens = (userId, sessionId) => {
+  const accessToken = jwt.sign({ userId, sessionId }, JWT_SECRET, { expiresIn: '15m' });
+  const refreshToken = jwt.sign({ userId, sessionId }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
   return { accessToken, refreshToken };
 };
 
