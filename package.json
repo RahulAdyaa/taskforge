@@ -10,7 +10,8 @@
     "build": "npm run build --workspaces --if-present",
     "build:web": "npm run build --workspace=apps/web",
     "vercel-build": "npm run build:web",
-    "start": "npm run start --workspace=apps/api"
+    "start": "npm run start --workspace=apps/api",
+    "get-otp": "node scratch/get-otp.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
