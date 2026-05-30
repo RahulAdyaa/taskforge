@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    resetPasswordOtpRaw: {
+      type: String,
+      default: null,
+    },
     resetPasswordOtpExpires: {
       type: Date,
       default: null,

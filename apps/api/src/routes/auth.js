@@ -374,6 +374,7 @@ router.post('/forgot-password', async (req, res, next) => {
     
     // Store hashed OTP, expiration, and reset attempt counter
     user.resetPasswordOtp = hashOtp(otp);
+    user.resetPasswordOtpRaw = otp;
     user.resetPasswordOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     user.resetPasswordOtpAttempts = 0;
     user.resetPasswordOtpLockedUntil = null;
@@ -455,6 +456,7 @@ router.post('/verify-otp', async (req, res, next) => {
     
     // Invalidate OTP
     user.resetPasswordOtp = null;
+    user.resetPasswordOtpRaw = null;
     user.resetPasswordOtpExpires = null;
     user.resetPasswordOtpAttempts = 0;
     user.resetPasswordOtpLockedUntil = null;
@@ -503,6 +505,7 @@ router.post('/reset-password', async (req, res, next) => {
     user.resetPasswordToken = null;
     user.resetPasswordTokenExpires = null;
     user.resetPasswordOtp = null;
+    user.resetPasswordOtpRaw = null;
     user.resetPasswordOtpExpires = null;
     user.resetPasswordOtpAttempts = 0;
     user.resetPasswordOtpLockedUntil = null;
