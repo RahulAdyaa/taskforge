@@ -297,104 +297,13 @@ router.get('/:id/dashboard', requireProjectRole(['ADMIN', 'MEMBER']), async (req
   } catch (error) { next(error); }
 });
 
-// GET project export data as JSON file download
-router.get('/:id/export', requireProjectRole(['ADMIN']), async (req, res, next) => {
+// DELETE project (cascade)
+router.delete('/:id', requireProjectRole(['ADMIN']), async (req, res, next) => {
   try {
     const projectId = req.params.id;
     const project = await Project.findById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const [members, tasks, auditLogs] = await Promise.all([
-      ProjectMember.find({ projectId }).populate('userId', 'name email').lean(),
-      Task.find({ projectId }).populate('assigneeId', 'name email').lean(),
-      AuditLog.find({ projectId }).populate('userId', 'name email').lean(),
-    ]);
-
-    const taskIds = tasks.map(t => t._id);
-    let comments = [];
-    let timeEntries = [];
-    if (taskIds.length > 0) {
-      [comments, timeEntries] = await Promise.all([
-        Comment.find({ taskId: { $in: taskIds } }).populate('userId', 'name email').lean(),
-        TimeEntry.find({ taskId: { $in: taskIds } }).populate('userId', 'name email').lean(),
-      ]);
-    }
-
-    const exportData = {
-      exportedAt: new Date(),
-      project: {
-        id: project._id.toString(),
-        name: project.name,
-        description: project.description,
-        createdAt: project.createdAt,
-      },
-      members: members.map(m => ({
-        id: m._id.toString(),
-        role: m.role,
-        user: m.userId ? {
-          id: m.userId._id.toString(),
-          name: m.userId.name,
-          email: m.userId.email
-        } : null
-      })),
-      tasks: tasks.map(t => ({
-        id: t._id.toString(),
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        priority: t.priority,
-        dueDate: t.dueDate,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        assignee: t.assigneeId ? {
-          id: t.assigneeId._id.toString(),
-          name: t.assigneeId.name,
-          email: t.assigneeId.email
-        } : null
-      })),
-      comments: comments.map(c => ({
-        id: c._id.toString(),
-        taskId: c.taskId.toString(),
-        content: c.content,
-        createdAt: c.createdAt,
-        user: c.userId ? {
-          id: c.userId._id.toString(),
-          name: c.userId.name,
-          email: c.userId.email
-        } : null
-      })),
-      timeEntries: timeEntries.map(te => ({
-        id: te._id.toString(),
-        taskId: te.taskId.toString(),
-        startTime: te.startTime,
-        endTime: te.endTime,
-        user: te.userId ? {
-          id: te.userId._id.toString(),
-          name: te.userId.name
-        } : null
-      })),
-      auditLogs: auditLogs.map(l => ({
-        id: l._id.toString(),
-        action: l.action,
-        details: l.details,
-        createdAt: l.createdAt,
-        user: l.userId ? {
-          id: l.userId._id.toString(),
-          name: l.userId.name
-        } : null
-      }))
-    };
-
-    res.setHeader('Content-disposition', `attachment; filename=project_${project.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.json`);
-    res.setHeader('Content-type', 'application/json');
-    res.send(JSON.stringify(exportData, null, 2));
-  } catch (error) { next(error); }
-});
-
-// DELETE project (cascade)
-router.delete('/:id', requireProjectRole(['ADMIN']), async (req, res, next) => {
-  try {
-    const projectId = req.params.id;
     const taskIds = (await Task.find({ projectId }).select('_id')).map(t => t._id);
 
     // Get all project members to notify them via their user rooms
@@ -406,8 +315,34 @@ router.delete('/:id', requireProjectRole(['ADMIN']), async (req, res, next) => {
       req.emitEvent(`user_${member.userId.toString()}`, 'project_deleted', { projectId });
     }
 
+    // Compile backup summary text of members and tasks
+    const [membersList, tasksList] = await Promise.all([
+      ProjectMember.find({ projectId }).populate('userId', 'name email').lean(),
+      Task.find({ projectId }).populate('assigneeId', 'name email').lean(),
+    ]);
+
+    const formattedMembers = membersList
+      .map(m => `- ${m.userId?.name || 'Unknown User'} (${m.userId?.email || 'N/A'}) [${m.role}]`)
+      .join('\n');
+
+    const formattedTasks = tasksList
+      .map(t => `- [${t.status}] ${t.title} (Priority: ${t.priority}, Assignee: ${t.assigneeId?.name || 'Unassigned'})`)
+      .join('\n');
+
+    const summaryText = `Project "${project.name}" (ID: ${project.id}) was permanently deleted.\n\n` +
+      `Members:\n${formattedMembers || 'No members'}\n\n` +
+      `Tasks:\n${formattedTasks || 'No tasks'}`;
+
+    // Create a special persistent audit log for the admin
+    await AuditLog.create({
+      action: 'PROJECT_DELETED',
+      details: summaryText,
+      projectId,
+      userId: req.user.id,
+    });
+
     await Promise.all([
-      AuditLog.deleteMany({ projectId }),
+      AuditLog.deleteMany({ projectId, action: { $ne: 'PROJECT_DELETED' } }),
       Label.deleteMany({ projectId }),
       ProjectMember.deleteMany({ projectId }),
       Notification.deleteMany({ link: { $regex: new RegExp(`^/app/projects/${projectId}`) } }),

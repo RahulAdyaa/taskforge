@@ -72,15 +72,9 @@ export default function Settings() {
 
   const handleDeleteProject = () => {
     if (!project) return;
-    const confirmation = prompt(`This action is irreversible.\n\nAll tasks, members, comments, and logs will be permanently deleted.\n\nAn automated archive backup JSON file of the project will download for your records.\n\nTo confirm, type the project name: "${project.name}"`);
+    const confirmation = prompt(`This action is irreversible.\n\nAll tasks, members, comments, and logs will be permanently deleted.\n\nA backup copy of the project data (tasks, members, and historical actions) will be saved in your settings panel's Activity Log.\n\nTo confirm, type the project name: "${project.name}"`);
     
     if (confirmation === project.name) {
-      // 1. Trigger automated JSON backup download
-      const exportUrl = `${api.defaults.baseURL}/projects/${id}/export?token=${localStorage.getItem('accessToken')}`;
-      window.open(exportUrl, '_blank');
-      toast.success('Backup archive download initiated.');
-
-      // 2. Perform deletion
       deleteProjectMutation.mutate();
     } else if (confirmation !== null) {
       toast.error('Project name verification failed. Deletion aborted.');
@@ -191,7 +185,7 @@ export default function Settings() {
                 <h3 className="font-sans font-bold text-lg text-black dark:text-white">Delete this project</h3>
                 <p className="font-sans text-sm text-black/60 dark:text-white/60">
                   Once deleted, all data including tasks, members, comments, and time logs will be permanently removed. 
-                  This action is irreversible. A backup file of all tasks and logs will be saved automatically.
+                  This action is irreversible. A backup copy of the project data will be saved in your settings panel's Activity Log.
                 </p>
               </div>
               <button 

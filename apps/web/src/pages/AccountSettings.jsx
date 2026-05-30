@@ -1762,7 +1762,7 @@ export default function AccountSettings() {
                         style={{ backgroundColor: 'var(--color-accent)' }}
                       />
                       <div className="font-sans font-bold text-xs">{act.title}</div>
-                      <div className="font-mono text-[10px] text-black/50 dark:text-[#E8E4DD]/40 mt-1">
+                      <div className="font-mono text-[10px] text-black/50 dark:text-[#E8E4DD]/40 mt-1 whitespace-pre-line">
                         {new Date(act.timestamp).toLocaleString()} • {act.details}
                       </div>
                     </div>
