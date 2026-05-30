@@ -217,7 +217,7 @@ export default function Dashboard() {
               <Link 
                 key={project.id} 
                 to={`/app/projects/${project.id}`}
-                className="bg-white p-6 rounded-2xl border border-[#E8E4DD] hover:border-black transition-colors shadow-sm group"
+                className="bg-white p-6 rounded-2xl border border-[#E8E4DD] dark:border-white/10 hover:border-black dark:hover:border-[var(--color-accent)] transition-all duration-300 shadow-sm hover:-translate-y-1 hover:shadow-md group"
               >
                 <div className="flex justify-between items-start mb-8">
                   <h3 className="font-sans font-bold text-xl">
@@ -226,7 +226,7 @@ export default function Dashboard() {
                   </h3>
                   <div 
                     title={`${project.members.length} ${project.members.length === 1 ? 'member' : 'members'}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-off-white dark:bg-[#1A1A1A] border border-[#E8E4DD] dark:border-[#2A2A2A] text-black/60 dark:text-white/60 group-hover:bg-signal-red group-hover:text-white group-hover:border-signal-red transition-all duration-300"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-off-white dark:bg-[#1A1A1A] border border-[#E8E4DD] dark:border-[#2A2A2A] text-[#71717A] dark:text-[#A1A1AA] group-hover:bg-[var(--color-accent)]/10 group-hover:border-[var(--color-accent)] group-hover:text-[var(--color-accent)] transition-all duration-300"
                   >
                     <Users className="w-3.5 h-3.5" />
                     <span className="font-mono text-xs font-bold">{project.members.length}</span>
