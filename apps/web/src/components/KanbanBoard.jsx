@@ -64,7 +64,17 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
 
   const handleDragStart = (event) => {
     const { active } = event;
-    const task = tasks.find(t => t.id === active.id);
+    let task = null;
+    for (const list of Object.values(columns)) {
+      const found = list.find(t => t.id === active.id);
+      if (found) {
+        task = found;
+        break;
+      }
+    }
+    if (!task) {
+      task = tasks.find(t => t.id === active.id);
+    }
     setActiveTask(task);
   };
 
@@ -75,9 +85,26 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
 
     const taskId = active.id;
     const newStatus = over.id; // column id
-    const task = tasks.find(t => t.id === taskId);
+    
+    // Find the task and its current status in our local columns state to prevent duplicates
+    let task = null;
+    let currentStatus = null;
 
-    if (task && task.status !== newStatus) {
+    for (const [status, list] of Object.entries(columns)) {
+      const found = list.find(t => t.id === taskId);
+      if (found) {
+        task = found;
+        currentStatus = status;
+        break;
+      }
+    }
+
+    if (!task) {
+      task = tasks.find(t => t.id === taskId);
+      currentStatus = task?.status;
+    }
+
+    if (task && currentStatus && currentStatus !== newStatus) {
       if (newStatus === 'DONE') {
         const incompleteBlockers = task.blockedBy?.filter(t => t.status !== 'DONE') || [];
         if (incompleteBlockers.length > 0) {
@@ -87,9 +114,9 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
       }
 
       setColumns(prev => {
-        const sourceCol = prev[task.status].filter(t => t.id !== taskId);
+        const sourceCol = prev[currentStatus].filter(t => t.id !== taskId);
         const destCol = [...prev[newStatus], { ...task, status: newStatus }];
-        return { ...prev, [task.status]: sourceCol, [newStatus]: destCol };
+        return { ...prev, [currentStatus]: sourceCol, [newStatus]: destCol };
       });
       updateTaskMutation.mutate({ taskId, status: newStatus });
     }
