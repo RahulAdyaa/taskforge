@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useNotificationStore } from './notificationStore';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -10,5 +11,6 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     set({ user: null, isAuthenticated: false });
+    useNotificationStore.getState().clearNotifications();
   },
 }));

@@ -61,4 +61,8 @@ export const useNotificationStore = create((set, get) => ({
       console.error('Failed to mark all notifications as read:', error);
     }
   },
+
+  clearNotifications: () => {
+    set({ notifications: [], unreadCount: 0, isInitialized: false });
+  },
 }));
