@@ -737,7 +737,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
                 />
                 <button 
                   type="submit" 
-                  disabled={!newComment.trim() || !isConnected}
+                  disabled={!newComment.trim() || postCommentMutation.isPending}
                   className="bg-signal-red text-white px-6 font-medium rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed h-12"
                 >
                   Post
