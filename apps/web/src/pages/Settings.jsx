@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Trash2, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
+import { useAuthStore } from '../store/authStore';
 
 export default function Settings() {
   const { id } = useParams();
@@ -11,6 +12,7 @@ export default function Settings() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('MEMBER');
   const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
 
   const { data: project, isLoading: isProjectLoading, error: projectError } = useQuery({
     queryKey: ['project', id],
@@ -50,6 +52,40 @@ export default function Settings() {
     },
     onError: () => toast.error('Failed to remove member')
   });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/projects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['projects']);
+      toast.success('Project has been successfully deleted.');
+      navigate('/app');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to delete project');
+    }
+  });
+
+  const userRole = project?.members?.find(m => m.user.id === user?.id)?.role;
+  const isAdmin = userRole === 'ADMIN';
+
+  const handleDeleteProject = () => {
+    if (!project) return;
+    const confirmation = prompt(`This action is irreversible.\n\nAll tasks, members, comments, and logs will be permanently deleted.\n\nAn automated archive backup JSON file of the project will download for your records.\n\nTo confirm, type the project name: "${project.name}"`);
+    
+    if (confirmation === project.name) {
+      // 1. Trigger automated JSON backup download
+      const exportUrl = `${api.defaults.baseURL}/projects/${id}/export?token=${localStorage.getItem('accessToken')}`;
+      window.open(exportUrl, '_blank');
+      toast.success('Backup archive download initiated.');
+
+      // 2. Perform deletion
+      deleteProjectMutation.mutate();
+    } else if (confirmation !== null) {
+      toast.error('Project name verification failed. Deletion aborted.');
+    }
+  };
 
   const handleAddMember = (e) => {
     e.preventDefault();
@@ -144,6 +180,31 @@ export default function Settings() {
             )}
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="bg-white dark:bg-[#121215] p-10 rounded-[2rem] border border-signal-red shadow-xl mb-10">
+            <h2 className="font-display font-extrabold text-4xl tracking-tight mb-2 text-signal-red">Danger Zone</h2>
+            <p className="font-mono text-xs text-signal-red/70 mb-8 uppercase tracking-widest">Irreversible operations</p>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 bg-signal-red/5 dark:bg-signal-red/10 rounded-2xl border border-signal-red/20">
+              <div className="space-y-1">
+                <h3 className="font-sans font-bold text-lg text-black dark:text-white">Delete this project</h3>
+                <p className="font-sans text-sm text-black/60 dark:text-white/60">
+                  Once deleted, all data including tasks, members, comments, and time logs will be permanently removed. 
+                  This action is irreversible. A backup file of all tasks and logs will be saved automatically.
+                </p>
+              </div>
+              <button 
+                onClick={handleDeleteProject}
+                disabled={deleteProjectMutation.isPending}
+                className="btn-brutal bg-signal-red text-white px-6 py-3 rounded-xl font-medium shrink-0 flex items-center gap-2 hover:bg-red-700 transition-colors"
+              >
+                <Trash2 className="w-4 h-4 relative z-10" />
+                <span className="relative z-10">{deleteProjectMutation.isPending ? 'Deleting...' : 'Delete Project'}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

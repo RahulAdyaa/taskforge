@@ -3,6 +3,8 @@ import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
 import toast from 'react-hot-toast';
 import { useSocket } from '../context/SocketContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 export let globalSocket = null;
 
@@ -10,6 +12,8 @@ export default function GlobalSocket() {
   const { user, isAuthenticated } = useAuthStore();
   const { fetchNotifications, addNotification, isInitialized } = useNotificationStore();
   const { socket } = useSocket();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const pollRef = useRef(null);
 
   // Sync globalSocket export reference for backwards compatibility
@@ -48,10 +52,21 @@ export default function GlobalSocket() {
         });
       };
 
+      const handleProjectDeleted = ({ projectId }) => {
+        queryClient.invalidateQueries(['projects']);
+        const currentPath = window.location.pathname;
+        if (currentPath.includes(`/app/projects/${projectId}`)) {
+          toast.error('This project has been deleted.');
+          navigate('/app');
+        }
+      };
+
       socket.on('notification', handleNotification);
+      socket.on('project_deleted', handleProjectDeleted);
 
       return () => {
         socket.off('notification', handleNotification);
+        socket.off('project_deleted', handleProjectDeleted);
         if (pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
@@ -65,7 +80,7 @@ export default function GlobalSocket() {
         pollRef.current = null;
       }
     };
-  }, [isAuthenticated, user, socket, isInitialized]);
+  }, [isAuthenticated, user, socket, isInitialized, queryClient, navigate]);
 
   return null;
 }
