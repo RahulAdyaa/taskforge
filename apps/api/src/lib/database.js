@@ -16,15 +16,17 @@ const MAX_DELAY_MS = 60000; // cap at 60 seconds
 const LOG_THROTTLE_MS = 30000; // only log disconnect/reconnect every 30s
 
 const connectDB = async (attempt = 1) => {
-  if (isConnected) {
-    return;
-  }
-
   // If already connected via mongoose state, skip
   if (mongoose.connection.readyState === 1) {
     isConnected = true;
     return;
   }
+
+  // If we thought we were connected but mongoose readyState is not 1, reset our flag
+  if (isConnected) {
+    isConnected = false;
+  }
+
 
   const uri = process.env.MONGODB_URI;
 
