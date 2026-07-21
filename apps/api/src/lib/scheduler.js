@@ -45,13 +45,10 @@ function startScheduler(io) {
             io.to(`user_${user._id.toString()}`).emit('notification', notification);
           }
 
-          // Send email if user has email
+          // Send email if user has email (runs asynchronously in background)
           if (user.email) {
-            try {
-              await sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'approaching');
-            } catch (err) {
-              console.error(`❌ [SCHEDULER] Failed to send approaching email to ${user.email}:`, err);
-            }
+            sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'approaching')
+              .catch(err => console.error(`❌ [SCHEDULER] Failed to send approaching email to ${user.email}:`, err));
           }
         }
       }
@@ -90,13 +87,10 @@ function startScheduler(io) {
             io.to(`user_${user._id.toString()}`).emit('notification', notification);
           }
 
-          // Send email if user has email
+          // Send email if user has email (runs asynchronously in background)
           if (user.email) {
-            try {
-              await sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'overdue');
-            } catch (err) {
-              console.error(`❌ [SCHEDULER] Failed to send overdue email to ${user.email}:`, err);
-            }
+            sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'overdue')
+              .catch(err => console.error(`❌ [SCHEDULER] Failed to send overdue email to ${user.email}:`, err));
           }
         }
       }
