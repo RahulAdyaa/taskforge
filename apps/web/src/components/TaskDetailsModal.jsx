@@ -466,7 +466,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
                   type="datetime-local"
                   value={toLocalISOString(activeTask.dueDate)}
                   onChange={(e) => updateTaskMutation.mutate({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                  className="bg-transparent border-b border-[#E8E4DD] text-black font-mono outline-none cursor-pointer focus:border-black text-xs min-w-[190px] w-48"
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-mono outline-none cursor-pointer focus:border-black text-xs min-w-[220px] w-56"
                 />
               ) : (
                 <strong className="text-black font-mono">

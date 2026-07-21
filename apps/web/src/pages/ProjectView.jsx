@@ -887,7 +887,7 @@ function AITaskModal({ projectId, members, labels, onClose }) {
                           type="datetime-local"
                           value={toLocalISOString(task.dueDate)}
                           onChange={(e) => updateTask(task._id, 'dueDate', e.target.value)}
-                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E] min-w-[190px] w-48"
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E] min-w-[220px] w-56"
                         />
                       </div>
                     </div>
@@ -989,20 +989,18 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
             <label className="block font-mono text-sm mb-2">Parameters (Optional)</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none h-24 resize-none" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block font-mono text-sm mb-2">Deadline</label>
-              <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none" />
-            </div>
-            <div>
-              <label className="block font-mono text-sm mb-2">Priority</label>
-              <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none bg-white">
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
-              </select>
-            </div>
+          <div>
+            <label className="block font-mono text-sm mb-2">Deadline</label>
+            <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none" />
+          </div>
+          <div>
+            <label className="block font-mono text-sm mb-2">Priority</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none bg-white">
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+              <option value="URGENT">Urgent</option>
+            </select>
           </div>
           <div>
             <label className="block font-mono text-sm mb-2">Assignee</label>
