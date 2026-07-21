@@ -184,15 +184,16 @@ export default function ProjectView() {
   return (
     <div className="min-h-screen bg-off-white flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-[#E8E4DD] px-4 sm:px-8 py-3 sm:py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 z-10 sticky top-0">
-        <div className="flex items-center gap-3 sm:gap-6 w-full md:w-auto justify-between md:justify-start">
+      <header className="bg-white dark:bg-[#121215] border-b border-[#E8E4DD] dark:border-white/10 px-4 sm:px-8 py-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 z-30 sticky top-0 shadow-sm">
+        {/* Row 1: Title, Live Status & Global Action Icons */}
+        <div className="flex items-center justify-between w-full md:w-auto">
           <div className="flex items-center gap-3">
-            <Link to="/app" className="p-2 hover:bg-off-white rounded-lg transition-colors">
-              <ArrowLeft className="w-5 h-5" />
+            <Link to="/app" className="p-1.5 hover:bg-off-white dark:hover:bg-white/5 rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5 text-black dark:text-white" />
             </Link>
             <div>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <h1 className="font-sans font-bold text-lg sm:text-xl truncate max-w-[180px] sm:max-w-none">
+              <div className="flex items-center gap-2">
+                <h1 className="font-sans font-bold text-base sm:text-xl text-black dark:text-white truncate max-w-[160px] sm:max-w-none">
                   {project?.name || 'Unknown Project'}
                 </h1>
                 {isConnected && (
@@ -208,22 +209,23 @@ export default function ProjectView() {
                   toast.success('Full Project ID copied!');
                 }}
                 title="Click to copy full Project ID"
-                className="font-mono text-[10px] sm:text-xs text-black/50 hover:text-black hover:underline cursor-pointer select-none truncate max-w-[200px] sm:max-w-none"
+                className="font-mono text-[10px] sm:text-xs text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white cursor-pointer select-none truncate"
               >
-                PROJECT_ID: {id.slice(0,8)} (click to copy)
+                ID: {id.slice(0,8)}
               </p>
             </div>
           </div>
 
-          <div className="flex md:hidden items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <ThemeToggle />
             <NotificationBell />
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-[#E8E4DD] pt-3 md:pt-0">
-          {/* Real-time Project Members Presence */}
-          <div className="flex items-center -space-x-2 mr-2">
+        {/* Row 2: Nav Tabs & Primary Actions (Mobile-Optimized) */}
+        <div className="flex items-center justify-between gap-2 w-full md:w-auto">
+          {/* Member Presence Avatars (Desktop only or compact) */}
+          <div className="hidden lg:flex items-center -space-x-2 mr-2">
             {project?.members?.map((member) => {
               const isOnline = onlineUsers.has(member.user.id);
               const initials = member.user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -233,15 +235,14 @@ export default function ProjectView() {
                   className="relative group cursor-pointer"
                   title={`${member.user.name} (${member.role}) - ${isOnline ? 'Online' : 'Offline'}`}
                 >
-                  <div className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-mono font-bold transition-all ${
+                  <div className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-mono font-bold transition-all ${
                     isOnline 
                       ? 'bg-black text-white font-bold border-black' 
                       : 'bg-[#E8E4DD] text-black/50 border-white'
                   }`}>
                     {initials}
                   </div>
-                  {/* Status dot */}
-                  <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                  <span className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white ${
                     isOnline ? 'bg-green-500' : 'bg-gray-400'
                   }`} />
                 </div>
@@ -249,10 +250,11 @@ export default function ProjectView() {
             })}
           </div>
 
-          <div className="flex bg-[#F5F3EE] p-1 rounded-xl border border-[#E8E4DD] overflow-x-auto whitespace-nowrap scrollbar-none max-w-full">
+          {/* Navigation Pills */}
+          <div className="flex bg-[#F5F3EE] dark:bg-[#1A1A1A] p-1 rounded-xl border border-[#E8E4DD] dark:border-white/10 overflow-x-auto whitespace-nowrap scrollbar-none flex-1 md:flex-none">
             <button 
               onClick={() => setActiveTab('kanban')}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-white dark:bg-[#2A2A2A] text-black dark:text-white shadow-sm' : 'text-black/60 dark:text-white/60 hover:text-black'}`}
             >
               Board
             </button>
@@ -260,62 +262,62 @@ export default function ProjectView() {
               <>
                 <button 
                   onClick={() => setActiveTab('terminal')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'terminal' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === 'terminal' ? 'bg-white dark:bg-[#2A2A2A] text-black dark:text-white shadow-sm' : 'text-black/60 dark:text-white/60 hover:text-black'}`}
                 >
                   Terminal
                 </button>
                 <button 
                   onClick={() => setActiveTab('dashboard')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${activeTab === 'dashboard' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === 'dashboard' ? 'bg-white dark:bg-[#2A2A2A] text-black dark:text-white shadow-sm' : 'text-black/60 dark:text-white/60 hover:text-black'}`}
                 >
-                  <LayoutDashboard className="w-4 h-4" /> Stats
+                  <LayoutDashboard className="w-3.5 h-3.5" /> Stats
                 </button>
               </>
             )}
           </div>
-          
+
+          {/* Admin Desktop Utility Links */}
           {isAdmin && (
-            <div className="flex gap-2">
+            <div className="hidden md:flex gap-2">
               <button 
                 onClick={() => generateInviteMutation.mutate()}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-black/60 hover:text-black hover:bg-[#F5F3EE] rounded-xl transition-all border border-[#E8E4DD]"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-[#F5F3EE] dark:hover:bg-white/5 rounded-xl transition-all border border-[#E8E4DD] dark:border-white/10"
                 title="Copy Invite Link"
               >
-                <LinkIcon className="w-4 h-4" />
+                <LinkIcon className="w-3.5 h-3.5" />
                 <span>Invite</span>
               </button>
-              <Link to={`/app/projects/${id}/settings`} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-black/60 hover:text-black hover:bg-[#F5F3EE] rounded-xl transition-all border border-[#E8E4DD]">
-                <SettingsIcon className="w-4 h-4" />
+              <Link to={`/app/projects/${id}/settings`} className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-[#F5F3EE] dark:hover:bg-white/5 rounded-xl transition-all border border-[#E8E4DD] dark:border-white/10">
+                <SettingsIcon className="w-3.5 h-3.5" />
                 <span>Settings</span>
               </Link>
             </div>
           )}
 
-          <div className="flex items-center">
-            <ThemeToggle />
-            <NotificationBell />
-          </div>
-
+          {/* Primary Actions: AI Engine & New Task */}
           {isAdmin && (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button 
                 onClick={() => setShowAIModal(true)}
-                className="btn-brutal bg-[#111111] text-[#E8E4DD] px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-[#E63B2E] transition-colors"
+                className="btn-brutal bg-[#111111] dark:bg-white/10 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 hover:bg-[#E63B2E] transition-colors"
+                title="AI Engine"
               >
-                <span className="font-mono text-xs text-[#E63B2E] font-bold group-hover:text-white">AI</span>
-                <span className="relative z-10">Analyze & Execute</span>
+                <span className="font-mono text-[10px] text-[#E63B2E] dark:text-red-400 font-bold">AI</span>
+                <span className="hidden sm:inline relative z-10">Analyze</span>
               </button>
               <button 
                 onClick={() => setShowCreateModal(true)}
-                className="btn-brutal bg-signal-red text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2"
+                className="btn-brutal bg-signal-red text-white px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-md"
               >
                 <Plus className="w-4 h-4 relative z-10" />
-                <span className="relative z-10">New Task</span>
+                <span className="relative z-10 hidden sm:inline">New Task</span>
+                <span className="relative z-10 sm:hidden">Task</span>
               </button>
             </div>
           )}
         </div>
       </header>
+
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden relative flex flex-col">
@@ -757,17 +759,17 @@ function AITaskModal({ projectId, members, labels, onClose }) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className={`bg-[#111111] text-[#E8E4DD] rounded-3xl shadow-2xl border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out] overflow-hidden flex flex-col ${step === 'review' ? 'w-full max-w-4xl max-h-[85vh]' : 'w-full max-w-xl'}`}>
+      <div className={`bg-[#111111] text-[#E8E4DD] rounded-2xl sm:rounded-3xl shadow-2xl border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out] overflow-y-auto flex flex-col max-h-[90vh] ${step === 'review' ? 'w-full max-w-4xl' : 'w-full max-w-xl'}`}>
         
         {/* Header */}
-        <div className="px-8 py-6 border-b border-[#E8E4DD]/10 shrink-0 flex justify-between items-center">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#E8E4DD]/10 shrink-0 flex justify-between items-center bg-[#111111] sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-[#E63B2E] font-bold bg-[#E63B2E]/10 px-2 py-1 rounded">AI ENGINE</span>
             <h2 className="font-display font-bold text-2xl">{step === 'input' ? 'Task Decomposition' : 'Review & Configure'}</h2>
@@ -787,28 +789,28 @@ function AITaskModal({ projectId, members, labels, onClose }) {
 
         {/* Step 1: Prompt Input */}
         {step === 'input' && (
-          <form onSubmit={handlePreview} className="p-8 space-y-6">
+          <form onSubmit={handlePreview} className="p-4 sm:p-8 flex flex-col flex-1 space-y-4 sm:space-y-6">
             <div>
-              <label className="block font-mono text-sm mb-2 text-[#E8E4DD]/70">Master Objective</label>
+              <label className="block font-mono text-xs sm:text-sm mb-2 text-[#E8E4DD]/70">Master Objective</label>
               <textarea 
                 autoFocus
                 value={prompt} 
                 onChange={e => setPrompt(e.target.value)} 
                 placeholder="e.g. Build the authentication system with Google Login..."
-                className="w-full bg-black border border-[#E8E4DD]/20 p-4 rounded-xl focus:border-[#E63B2E] outline-none h-32 resize-none font-mono text-sm" 
+                className="w-full bg-black border border-[#E8E4DD]/20 p-3 sm:p-4 rounded-xl focus:border-[#E63B2E] outline-none h-28 sm:h-32 resize-none font-mono text-xs sm:text-sm" 
               />
             </div>
-            <p className="font-mono text-[10px] text-[#E8E4DD]/30">
+            <p className="font-mono text-[10px] sm:text-xs text-[#E8E4DD]/40">
               The AI will generate tasks, then you can assign teammates, set due dates, and adjust priorities before deploying.
             </p>
-            <div className="pt-4 flex justify-end gap-4">
-              <button type="button" onClick={onClose} className="px-6 py-3 font-mono text-sm text-[#E8E4DD]/50 hover:text-white transition-colors">
+            <div className="sticky bottom-0 bg-[#111111] pt-4 pb-4 border-t border-[#E8E4DD]/10 mt-auto flex justify-end gap-3 z-20">
+              <button type="button" onClick={onClose} className="px-4 sm:px-6 py-2.5 sm:py-3 font-mono text-xs sm:text-sm text-[#E8E4DD]/50 hover:text-white transition-colors">
                 Abort
               </button>
               <button 
                 type="submit" 
                 disabled={previewMutation.isPending || !prompt.trim()}
-                className="bg-[#E63B2E] text-white px-8 py-3 rounded-xl font-medium font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 transition-colors flex items-center gap-2"
+                className="bg-[#E63B2E] text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-medium font-mono text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 active:scale-[0.98] transition-all flex items-center gap-2 shadow-lg"
               >
                 {previewMutation.isPending ? (
                   <>
@@ -911,21 +913,21 @@ function AITaskModal({ projectId, members, labels, onClose }) {
             </div>
 
             {/* Footer Actions */}
-            <div className="px-8 py-5 border-t border-[#E8E4DD]/10 shrink-0 flex items-center justify-between bg-[#0D0D0D]">
-              <span className="font-mono text-xs text-[#E8E4DD]/40">
-                {enabledCount} of {generatedTasks.length} tasks selected
+            <div className="sticky bottom-0 px-4 sm:px-8 py-4 border-t border-[#E8E4DD]/10 shrink-0 flex items-center justify-between bg-[#0D0D0D] z-20">
+              <span className="font-mono text-[10px] sm:text-xs text-[#E8E4DD]/40">
+                {enabledCount} of {generatedTasks.length} selected
               </span>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button 
                   onClick={() => { setStep('input'); setGeneratedTasks([]); }}
-                  className="px-5 py-2.5 font-mono text-xs text-[#E8E4DD]/50 hover:text-white border border-[#E8E4DD]/10 rounded-xl transition-colors"
+                  className="px-3 sm:px-5 py-2 sm:py-2.5 font-mono text-xs text-[#E8E4DD]/50 hover:text-white border border-[#E8E4DD]/10 rounded-xl transition-colors"
                 >
                   Regenerate
                 </button>
                 <button
                   onClick={handleExecute}
                   disabled={executeMutation.isPending || enabledCount === 0}
-                  className="bg-[#E63B2E] text-white px-8 py-2.5 rounded-xl font-medium font-mono text-sm disabled:opacity-50 hover:bg-red-600 transition-colors flex items-center gap-2"
+                  className="bg-[#E63B2E] text-white px-4 sm:px-8 py-2 sm:py-2.5 rounded-xl font-medium font-mono text-xs sm:text-sm disabled:opacity-50 hover:bg-red-600 active:scale-[0.98] transition-all flex items-center gap-2 shadow-lg"
                 >
                   {executeMutation.isPending ? (
                     <>
