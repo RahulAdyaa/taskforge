@@ -83,7 +83,7 @@ export default function ChatWidget() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center text-2xl hover:scale-110 transition-transform z-50"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-12 h-12 sm:w-14 sm:h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center text-xl sm:text-2xl hover:scale-110 transition-transform z-50"
         title="Open AI Assistant"
       >
         ✨
@@ -92,7 +92,7 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-[380px] h-[500px] bg-white rounded-3xl shadow-2xl border border-[#E8E4DD] flex flex-col z-50 overflow-hidden animate-[slideIn_0.2s_ease-out]">
+    <div className="fixed bottom-3 right-3 left-3 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[380px] h-[480px] max-h-[80vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-[#E8E4DD] flex flex-col z-50 overflow-hidden animate-[slideIn_0.2s_ease-out]">
       {/* Header */}
       <div className="bg-black text-white px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">

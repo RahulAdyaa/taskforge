@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import NotificationBell from '../components/NotificationBell';
 import StandupModal from '../components/StandupModal';
 import ThemeToggle from '../components/ThemeToggle';
+import MobileHeader from '../components/MobileHeader';
 
 export default function Dashboard() {
   const user = useAuthStore(state => state.user);
@@ -89,9 +90,12 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-off-white flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
+    <div className="min-h-screen bg-off-white flex flex-col lg:flex-row">
+      {/* Mobile Top Header Navigation */}
+      <MobileHeader projects={projects || []} />
+
+      {/* Desktop Permanent Sidebar */}
+      <div className="hidden lg:flex w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex-col p-6 fixed h-full z-20">
         <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
@@ -127,25 +131,27 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 p-12">
-        <div className="flex justify-between items-end mb-12 border-b border-[#E8E4DD] pb-6">
+      <div className="flex-1 ml-0 lg:ml-64 p-4 sm:p-6 lg:p-12 w-full min-w-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-8 sm:mb-12 border-b border-[#E8E4DD] pb-6">
           <div>
-            <h1 className="font-display font-extrabold text-5xl tracking-tight mb-2">Projects</h1>
-            <p className="font-mono text-sm text-black/50">Active Operational Zones</p>
+            <h1 className="font-display font-extrabold text-3xl sm:text-5xl tracking-tight mb-2">Projects</h1>
+            <p className="font-mono text-xs sm:text-sm text-black/50">Active Operational Zones</p>
           </div>
-          <div className="flex gap-4 items-center">
-            <ThemeToggle />
-            <NotificationBell />
+          <div className="flex flex-wrap gap-2 sm:gap-4 items-center w-full sm:w-auto">
+            <div className="hidden sm:flex items-center gap-2">
+              <ThemeToggle />
+              <NotificationBell />
+            </div>
             <button 
               onClick={() => { setIsJoining(true); setIsCreating(false); }}
-              className="btn-brutal bg-white border border-[#E8E4DD] text-black px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:border-black transition-colors"
+              className="btn-brutal bg-white border border-[#E8E4DD] text-black px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium flex items-center gap-2 hover:border-black transition-colors text-xs sm:text-sm flex-1 sm:flex-none justify-center"
             >
               <ArrowRightToLine className="w-4 h-4 relative z-10" />
               <span className="relative z-10">Join Project</span>
             </button>
             <button 
               onClick={() => { setIsCreating(true); setIsJoining(false); }}
-              className="btn-brutal bg-black text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2"
+              className="btn-brutal bg-black text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium flex items-center gap-2 text-xs sm:text-sm flex-1 sm:flex-none justify-center"
             >
               <Plus className="w-4 h-4 relative z-10" />
               <span className="relative z-10">New Project</span>

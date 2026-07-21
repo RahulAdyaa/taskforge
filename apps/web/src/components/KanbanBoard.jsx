@@ -154,7 +154,7 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
   }
 
   return (
-    <div className="flex h-full p-4 gap-4 overflow-x-auto bg-off-white">
+    <div className="flex h-full p-2 sm:p-4 gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory bg-off-white pb-6 scrollbar-none">
       <DndContext 
         sensors={sensors} 
         collisionDetection={closestCorners} 
@@ -205,7 +205,7 @@ function Column({ id, title, tasks, projectId, onTaskClick }) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
-    <div ref={setNodeRef} className="flex-1 min-w-[280px] flex flex-col bg-[#F5F3EE] rounded-2xl p-4 border border-[#E8E4DD] shadow-inner">
+    <div ref={setNodeRef} className="w-[85vw] sm:w-[320px] lg:flex-1 shrink-0 snap-center flex flex-col bg-[#F5F3EE] rounded-2xl p-3 sm:p-4 border border-[#E8E4DD] shadow-inner">
       <div className="flex items-center justify-between mb-4 px-1">
         <h3 className="font-display italic text-xl">{title}</h3>
         <span className="font-mono text-xs bg-white px-2 py-1 rounded-md border border-[#E8E4DD]">{tasks.length}</span>

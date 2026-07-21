@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import StandupModal from '../components/StandupModal';
+import MobileHeader from '../components/MobileHeader';
 
 export default function MyTasks() {
   const [showStandup, setShowStandup] = useState(false);
@@ -48,9 +49,12 @@ export default function MyTasks() {
   };
 
   return (
-    <div className="min-h-screen bg-off-white flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex flex-col p-6 fixed h-full">
+    <div className="min-h-screen bg-off-white flex flex-col lg:flex-row">
+      {/* Mobile Top Header Navigation */}
+      <MobileHeader />
+
+      {/* Desktop Permanent Sidebar */}
+      <div className="hidden lg:flex w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex-col p-6 fixed h-full z-20">
         <Link to="/" className="font-display text-2xl font-bold mb-12 block hover:text-signal-red transition-colors">TASKFORGE</Link>
         
         <div className="flex-1 space-y-2">
@@ -86,13 +90,13 @@ export default function MyTasks() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 p-12">
-        <div className="flex justify-between items-end mb-12 border-b border-[#E8E4DD] pb-6">
+      <div className="flex-1 ml-0 lg:ml-64 p-4 sm:p-6 lg:p-12 w-full min-w-0">
+        <div className="flex justify-between items-end mb-8 sm:mb-12 border-b border-[#E8E4DD] pb-6">
           <div>
-            <h1 className="font-display font-extrabold text-5xl tracking-tight mb-2">My Tasks</h1>
-            <p className="font-mono text-sm text-black/50">Your cross-project assignments</p>
+            <h1 className="font-display font-extrabold text-3xl sm:text-5xl tracking-tight mb-2">My Tasks</h1>
+            <p className="font-mono text-xs sm:text-sm text-black/50">Your cross-project assignments</p>
           </div>
-          <div className="flex items-center">
+          <div className="hidden sm:flex items-center gap-2">
             <ThemeToggle />
             <NotificationBell />
           </div>

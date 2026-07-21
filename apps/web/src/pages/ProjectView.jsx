@@ -184,37 +184,44 @@ export default function ProjectView() {
   return (
     <div className="min-h-screen bg-off-white flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-[#E8E4DD] px-8 py-4 flex items-center justify-between z-10 sticky top-0">
-        <div className="flex items-center gap-6">
-          <Link to="/app" className="p-2 hover:bg-off-white rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-sans font-bold text-xl">
-                {project?.name || 'Unknown Project'}
-              </h1>
-              {isConnected && (
-                <div className="flex items-center gap-1 bg-[#E63B2E]/10 px-2 py-0.5 rounded border border-[#E63B2E]/20">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#E63B2E] animate-pulse"></div>
-                  <span className="font-mono text-[10px] text-[#E63B2E] font-bold uppercase tracking-wider">Live</span>
-                </div>
-              )}
+      <header className="bg-white border-b border-[#E8E4DD] px-4 sm:px-8 py-3 sm:py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 z-10 sticky top-0">
+        <div className="flex items-center gap-3 sm:gap-6 w-full md:w-auto justify-between md:justify-start">
+          <div className="flex items-center gap-3">
+            <Link to="/app" className="p-2 hover:bg-off-white rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <h1 className="font-sans font-bold text-lg sm:text-xl truncate max-w-[180px] sm:max-w-none">
+                  {project?.name || 'Unknown Project'}
+                </h1>
+                {isConnected && (
+                  <div className="flex items-center gap-1 bg-[#E63B2E]/10 px-2 py-0.5 rounded border border-[#E63B2E]/20 shrink-0">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#E63B2E] animate-pulse"></div>
+                    <span className="font-mono text-[10px] text-[#E63B2E] font-bold uppercase tracking-wider">Live</span>
+                  </div>
+                )}
+              </div>
+              <p 
+                onClick={() => {
+                  navigator.clipboard.writeText(id);
+                  toast.success('Full Project ID copied!');
+                }}
+                title="Click to copy full Project ID"
+                className="font-mono text-[10px] sm:text-xs text-black/50 hover:text-black hover:underline cursor-pointer select-none truncate max-w-[200px] sm:max-w-none"
+              >
+                PROJECT_ID: {id.slice(0,8)} (click to copy)
+              </p>
             </div>
-            <p 
-              onClick={() => {
-                navigator.clipboard.writeText(id);
-                toast.success('Full Project ID copied!');
-              }}
-              title="Click to copy full Project ID"
-              className="font-mono text-xs text-black/50 hover:text-black hover:underline cursor-pointer select-none"
-            >
-              PROJECT_ID: {id.slice(0,8)} (click to copy full)
-            </p>
+          </div>
+
+          <div className="flex md:hidden items-center gap-1">
+            <ThemeToggle />
+            <NotificationBell />
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-[#E8E4DD] pt-3 md:pt-0">
           {/* Real-time Project Members Presence */}
           <div className="flex items-center -space-x-2 mr-2">
             {project?.members?.map((member) => {
@@ -242,10 +249,10 @@ export default function ProjectView() {
             })}
           </div>
 
-          <div className="flex bg-[#F5F3EE] p-1 rounded-xl border border-[#E8E4DD]">
+          <div className="flex bg-[#F5F3EE] p-1 rounded-xl border border-[#E8E4DD] overflow-x-auto whitespace-nowrap scrollbar-none max-w-full">
             <button 
               onClick={() => setActiveTab('kanban')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-white shadow-sm' : 'text-black/60 hover:text-black'}`}
             >
               Board
             </button>

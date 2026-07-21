@@ -128,7 +128,7 @@ const Hero = () => {
   }, []);
 
   return (
-    <section ref={containerRef} className="relative h-[100dvh] w-full overflow-hidden flex items-end p-12 md:p-24">
+    <section ref={containerRef} className="relative h-[100dvh] w-full overflow-hidden flex items-end p-6 sm:p-12 md:p-24">
       <div className="absolute inset-0 bg-black">
         <img 
           src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop" 
@@ -139,12 +139,12 @@ const Hero = () => {
       </div>
       
       <div className="relative z-10 text-white max-w-4xl">
-        <div className="hero-text mb-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-signal-red/10 border border-signal-red/30 backdrop-blur-md font-mono text-[#FF7066] text-xs tracking-wider font-semibold uppercase">
+        <div className="hero-text mb-4 sm:mb-6 inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-signal-red/10 border border-signal-red/30 backdrop-blur-md font-mono text-[#FF7066] text-[10px] sm:text-xs tracking-wider font-semibold uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-signal-red animate-pulse"></span>
           TASKFORGE — PRECISION TASK ENGINE
         </div>
-        <h1 className="hero-text font-sans font-extrabold text-5xl md:text-7xl lg:text-8xl tracking-tighter leading-tight mb-2 text-white">Command the</h1>
-        <h2 className="hero-text font-cursive italic text-7xl md:text-9xl lg:text-[11rem] leading-none mb-12 text-white drop-shadow-md">Workflow.</h2>
+        <h1 className="hero-text font-sans font-extrabold text-4xl sm:text-6xl md:text-7xl lg:text-8xl tracking-tighter leading-tight mb-2 text-white">Command the</h1>
+        <h2 className="hero-text font-cursive italic text-5xl sm:text-7xl md:text-9xl lg:text-[11rem] leading-none mb-8 sm:mb-12 text-white drop-shadow-md">Workflow.</h2>
         {isAuthenticated ? (
           <Link to="/app" className="hero-text btn-brutal bg-signal-red text-white text-lg md:text-xl px-10 py-5 rounded-full font-medium inline-block">
             <span className="relative z-10">Go to Dashboard</span>
@@ -327,12 +327,13 @@ const Protocol = () => {
 
 const Pricing = () => {
   return (
-    <section id="pricing" className="py-32 px-6 max-w-7xl mx-auto">
-      <div className="text-center mb-20">
-        <h2 className="font-cursive italic text-6xl mb-4 dark:text-white">Access Protocol</h2>
-        <p className="font-mono text-black/60 dark:text-zinc-400">Select your operational tier.</p>
+    <section id="features" className="min-h-screen bg-off-white dark:bg-[#09090B] p-6 sm:p-12 md:p-20 flex flex-col justify-center transition-colors duration-300">
+      <div className="mb-12">
+        <h2 className="font-display font-extrabold text-3xl sm:text-5xl md:text-6xl text-black dark:text-white mb-2">Engine Features</h2>
+        <p className="font-mono text-[#E63B2E] text-xs sm:text-sm font-semibold uppercase tracking-wider">Built for relentless focus.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         {/* Tier 1 */}
         <div className="bg-[#F5F3EE] dark:bg-[#0F0F12] rounded-[2rem] p-10 border border-[#E8E4DD] dark:border-zinc-800/80 shadow-lg text-black dark:text-zinc-100">
           <h3 className="font-sans font-bold text-2xl mb-2">Essential</h3>

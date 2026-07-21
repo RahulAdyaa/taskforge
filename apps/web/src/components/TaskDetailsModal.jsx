@@ -380,15 +380,15 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
       <div 
-        className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-[#E8E4DD] animate-[slideIn_0.2s_ease-out] flex flex-col max-h-[90vh]"
+        className="w-full max-w-6xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-[#E8E4DD] animate-[slideIn_0.2s_ease-out] flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-8 py-5 border-b border-[#E8E4DD] shrink-0 bg-white">
+        <div className="px-4 sm:px-8 py-4 sm:py-5 border-b border-[#E8E4DD] shrink-0 bg-white">
           <div className="flex justify-between items-start gap-4 mb-3">
-            <h2 className="font-display italic text-2xl break-words min-w-0 flex-1" style={{ overflowWrap: 'anywhere' }}>{task.title}</h2>
+            <h2 className="font-display italic text-xl sm:text-2xl break-words min-w-0 flex-1" style={{ overflowWrap: 'anywhere' }}>{task.title}</h2>
             <div className="flex items-center gap-3 shrink-0">
               <button 
                 onClick={() => setShowDeleteConfirm(true)} 
@@ -556,10 +556,10 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
         )}
 
         {/* Two-Panel Body: Details (Left) + Chat (Right) */}
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
           
           {/* LEFT PANEL — Task Details */}
-          <div className="flex-1 min-w-0 overflow-y-auto p-6 bg-[#F5F3EE] border-r border-[#E8E4DD]">
+          <div className="w-full md:w-1/2 lg:w-3/5 min-w-0 overflow-y-auto p-4 sm:p-6 bg-[#F5F3EE] border-b md:border-b-0 md:border-r border-[#E8E4DD]">
             {/* Description */}
             <div className="mb-6 bg-white p-5 rounded-2xl border border-[#E8E4DD] shadow-sm">
               <h3 className="font-mono text-xs text-black/40 uppercase tracking-widest mb-3">Description</h3>
@@ -633,7 +633,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
           </div>
 
           {/* RIGHT PANEL — Discussion / Chat */}
-          <div className="flex-1 min-w-0 flex flex-col bg-white">
+          <div className="w-full md:w-1/2 lg:w-2/5 min-w-0 flex flex-col bg-white min-h-[320px] md:min-h-0">
             {/* Chat Header */}
             <div className="px-6 py-4 border-b border-[#E8E4DD] shrink-0 flex items-center justify-between bg-[#FAFAF8]">
               <h3 className="font-mono text-xs text-black/40 uppercase tracking-widest font-bold">💬 Discussion Thread</h3>

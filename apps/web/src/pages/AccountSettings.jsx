@@ -46,7 +46,7 @@ export default function AccountSettings() {
   const setAuth = useAuthStore(state => state.setAuth);
   const logout = useAuthStore(state => state.logout);
   const [activeSection, setActiveSection] = useState('profile');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const { setThemeExplicitly } = useTheme();
 
   // Load fresh user data and workspaces count on mount
@@ -691,7 +691,7 @@ export default function AccountSettings() {
       </div>
 
       {/* Main Settings Panel */}
-      <div className={`flex-1 p-12 overflow-x-hidden relative transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0 pl-20'}`}>
+      <div className={`flex-1 p-4 sm:p-6 lg:p-12 overflow-x-hidden relative transition-all duration-300 ${sidebarOpen ? 'ml-0 lg:ml-80' : 'ml-0 lg:pl-20'} pt-16 lg:pt-12 w-full min-w-0`}>
         {/* Page-level dynamic ambient color glow */}
         <div 
           className="absolute -top-20 left-1/3 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-[0.06] pointer-events-none transition-all duration-1000"
