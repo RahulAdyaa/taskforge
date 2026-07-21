@@ -64,10 +64,10 @@ const taskSchema = new mongoose.Schema(
     toJSON: {
       virtuals: true,
       transform: (_doc, ret) => {
-        ret.id = ret._id.toString();
-        ret.projectId = ret.projectId?.toString?.() || ret.projectId;
-        ret.assigneeId = ret.assigneeId?.toString?.() || ret.assigneeId;
-        ret.creatorId = ret.creatorId?.toString?.() || ret.creatorId;
+        ret.id = ret._id ? ret._id.toString() : ret.id;
+        if (ret.projectId && typeof ret.projectId !== 'object') ret.projectId = ret.projectId.toString();
+        if (ret.assigneeId && typeof ret.assigneeId !== 'object') ret.assigneeId = ret.assigneeId.toString();
+        if (ret.creatorId && typeof ret.creatorId !== 'object') ret.creatorId = ret.creatorId.toString();
         delete ret._id;
         delete ret.__v;
         return ret;
@@ -76,10 +76,10 @@ const taskSchema = new mongoose.Schema(
     toObject: {
       virtuals: true,
       transform: (_doc, ret) => {
-        ret.id = ret._id.toString();
-        ret.projectId = ret.projectId?.toString?.() || ret.projectId;
-        ret.assigneeId = ret.assigneeId?.toString?.() || ret.assigneeId;
-        ret.creatorId = ret.creatorId?.toString?.() || ret.creatorId;
+        ret.id = ret._id ? ret._id.toString() : ret.id;
+        if (ret.projectId && typeof ret.projectId !== 'object') ret.projectId = ret.projectId.toString();
+        if (ret.assigneeId && typeof ret.assigneeId !== 'object') ret.assigneeId = ret.assigneeId.toString();
+        if (ret.creatorId && typeof ret.creatorId !== 'object') ret.creatorId = ret.creatorId.toString();
         delete ret._id;
         delete ret.__v;
         return ret;

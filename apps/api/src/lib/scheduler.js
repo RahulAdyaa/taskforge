@@ -19,22 +19,23 @@ function startScheduler(io) {
       }).populate('assigneeId creatorId');
 
       for (const task of approachingTasks) {
+        const targets = [];
+        if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
+        if (task.creatorId && task.creatorId.email && (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())) {
+          targets.push(task.creatorId);
+        }
+
         // Mark as approaching notified
         task.deadlineNotificationStatus = 'APPROACHING_SENT';
         await task.save();
 
-        const targets = [];
-        if (task.assigneeId) targets.push(task.assigneeId);
-        if (task.creatorId && (!task.assigneeId || task.creatorId._id.toString() !== task.assigneeId._id.toString())) {
-          targets.push(task.creatorId);
-        }
-
         console.log(`⏰ [SCHEDULER] Task "${task.title}" is approaching deadline. Notifying ${targets.length} user(s)...`);
 
         for (const user of targets) {
+          const userId = user._id || user.id;
           // Create in-app notification
           const notification = await Notification.create({
-            userId: user._id,
+            userId: userId,
             type: 'DEADLINE_APPROACHING',
             message: `Oh, your deadline is approaching for task: ${task.title}`,
             link: `/app/projects/${task.projectId}?task=${task.id}`
@@ -42,7 +43,7 @@ function startScheduler(io) {
 
           // Emit real-time socket event if io is available
           if (io) {
-            io.to(`user_${user._id.toString()}`).emit('notification', notification);
+            io.to(`user_${userId.toString()}`).emit('notification', notification);
           }
 
           // Send email if user has email (runs asynchronously in background)
@@ -61,22 +62,23 @@ function startScheduler(io) {
       }).populate('assigneeId creatorId');
 
       for (const task of overdueTasks) {
+        const targets = [];
+        if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
+        if (task.creatorId && task.creatorId.email && (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())) {
+          targets.push(task.creatorId);
+        }
+
         // Mark as overdue notified
         task.deadlineNotificationStatus = 'OVERDUE_SENT';
         await task.save();
 
-        const targets = [];
-        if (task.assigneeId) targets.push(task.assigneeId);
-        if (task.creatorId && (!task.assigneeId || task.creatorId._id.toString() !== task.assigneeId._id.toString())) {
-          targets.push(task.creatorId);
-        }
-
         console.log(`⏰ [SCHEDULER] Task "${task.title}" has passed deadline. Notifying ${targets.length} user(s)...`);
 
         for (const user of targets) {
+          const userId = user._id || user.id;
           // Create in-app notification
           const notification = await Notification.create({
-            userId: user._id,
+            userId: userId,
             type: 'DEADLINE_PASSED',
             message: `Deadline has passed: ${task.title}`,
             link: `/app/projects/${task.projectId}?task=${task.id}`
@@ -84,7 +86,7 @@ function startScheduler(io) {
 
           // Emit real-time socket event if io is available
           if (io) {
-            io.to(`user_${user._id.toString()}`).emit('notification', notification);
+            io.to(`user_${userId.toString()}`).emit('notification', notification);
           }
 
           // Send email if user has email (runs asynchronously in background)
