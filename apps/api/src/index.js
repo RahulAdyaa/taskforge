@@ -142,7 +142,11 @@ if (!process.env.VERCEL) {
   listener.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     // Connect to MongoDB in the background (retries automatically)
-    connectDB().catch(() => {
+    connectDB().then(() => {
+      // Start deadline scheduler once connected
+      const { startScheduler } = require('./lib/scheduler');
+      startScheduler(io);
+    }).catch(() => {
       // connectDB handles its own retries — this catch prevents
       // unhandled-rejection noise if all retries are exhausted.
     });

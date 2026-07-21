@@ -27,6 +27,13 @@ export default function GlobalSocket() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
+    // Request native browser notifications permission (supported on phones, tablets, laptops)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
     // Always fetch notifications on mount
     if (!isInitialized) {
       fetchNotifications();
@@ -50,6 +57,18 @@ export default function GlobalSocket() {
             fontSize: '12px',
           },
         });
+
+        // Trigger native notification if user is on laptop, pad, or phone and tab is in background
+        if (document.hidden && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('TaskForge', {
+              body: notification.message,
+              icon: '/favicon.ico',
+            });
+          } catch (e) {
+            console.error('Failed to trigger native notification:', e);
+          }
+        }
       };
 
       const handleProjectDeleted = ({ projectId }) => {

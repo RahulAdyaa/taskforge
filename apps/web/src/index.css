@@ -90,6 +90,15 @@ html.dark .bg-\[\#E8E4DD\] {
 html.dark .hover\:bg-off-white:hover { 
   background-color: #18181C !important; 
 }
+html.dark .hover\:bg-\[\#F5F3EE\]:hover { 
+  background-color: #27272A !important; 
+}
+html.dark .bg-red-50 {
+  background-color: rgba(230, 59, 46, 0.1) !important;
+}
+html.dark .border-red-100 {
+  border-color: rgba(230, 59, 46, 0.2) !important;
+}
 
 /* Custom Cursive Display Font Helper */
 .font-cursive {

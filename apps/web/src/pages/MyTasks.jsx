@@ -139,7 +139,7 @@ export default function MyTasks() {
                       {task.dueDate ? (
                         <>
                           <Clock className="w-3 h-3" />
-                          <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                          <span>{new Date(task.dueDate).toLocaleString()}</span>
                         </>
                       ) : (
                         <span>No Due Date</span>

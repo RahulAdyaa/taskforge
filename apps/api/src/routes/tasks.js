@@ -41,6 +41,7 @@ router.get('/', async (req, res, next) => {
         projectId: t.projectId?.toString(),
         assigneeId: t.assigneeId?._id?.toString() || t.assigneeId?.toString() || null,
         creatorId: t.creatorId?._id?.toString() || t.creatorId?.toString(),
+        deadlineNotificationStatus: t.deadlineNotificationStatus,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
         labels: (t.labels || []).map(l => ({ id: l._id?.toString() || l.id, name: l.name, color: l.color, projectId: l.projectId?.toString() })),
@@ -309,18 +310,14 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     if (!task || task.projectId.toString() !== req.params.projectId) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    const isAdmin = req.projectMembership.role === 'ADMIN';
-    const isAssignee = task.assigneeId?.toString() === req.user.id;
-    const isCreator = task.creatorId?.toString() === req.user.id;
-    if (!isAdmin && !isAssignee && !isCreator) return res.status(403).json({ error: 'Forbidden' });
+    const isMember = req.projectMembership.role === 'ADMIN' || req.projectMembership.role === 'MEMBER';
+    if (!isMember) return res.status(403).json({ error: 'Forbidden' });
 
-    let updateData = {};
-    if (isAdmin) {
-      const { labelIds, ...rest } = req.body;
-      updateData = rest;
-      if (labelIds !== undefined) updateData.labels = labelIds;
-    } else {
-      if (req.body.status) updateData.status = req.body.status;
+    const { labelIds, ...rest } = req.body;
+    let updateData = rest;
+    if (labelIds !== undefined) updateData.labels = labelIds;
+    if (req.body.dueDate !== undefined) {
+      updateData.deadlineNotificationStatus = 'NONE';
     }
 
     // Check dependency blockers

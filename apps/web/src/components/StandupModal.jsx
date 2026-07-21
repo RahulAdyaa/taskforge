@@ -68,7 +68,7 @@ export default function StandupModal({ onClose }) {
         const content = trimmed.replace('- ', '');
         const hasWarning = content.includes('⚠️') || content.includes('OVERDUE');
         elements.push(
-          <div key={i} className={`flex items-start gap-3 py-2 px-3 rounded-lg mb-1 ${hasWarning ? 'bg-red-50 border border-red-100' : 'hover:bg-[#F5F3EE]'}`}>
+          <div key={i} className={`flex items-start gap-3 py-2 px-3 rounded-lg mb-1 ${hasWarning ? 'bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30' : 'hover:bg-[#F5F3EE] dark:hover:bg-zinc-800'}`}>
             <span className="text-black/30 mt-0.5 select-none">›</span>
             <span className="font-mono text-xs text-black/80 leading-relaxed">
               {renderTextWithLinksAndBold(content)}

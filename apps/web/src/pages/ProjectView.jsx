@@ -884,10 +884,10 @@ function AITaskModal({ projectId, members, labels, onClose }) {
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-[9px] text-[#E8E4DD]/30 uppercase tracking-widest">Due</span>
                         <input
-                          type="date"
-                          value={task.dueDate}
+                          type="datetime-local"
+                          value={toLocalISOString(task.dueDate)}
                           onChange={(e) => updateTask(task._id, 'dueDate', e.target.value)}
-                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E]"
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E] min-w-[190px] w-48"
                         />
                       </div>
                     </div>
@@ -928,6 +928,14 @@ function AITaskModal({ projectId, members, labels, onClose }) {
     </div>
   );
 }
+
+const toLocalISOString = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+};
 
 function CreateTaskModal({ projectId, members, labels, onClose }) {
   const queryClient = useQueryClient();
@@ -984,7 +992,7 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-mono text-sm mb-2">Deadline</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none" />
+              <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none" />
             </div>
             <div>
               <label className="block font-mono text-sm mb-2">Priority</label>

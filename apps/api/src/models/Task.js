@@ -53,6 +53,11 @@ const taskSchema = new mongoose.Schema(
         ref: 'Task',
       },
     ],
+    deadlineNotificationStatus: {
+      type: String,
+      enum: ['NONE', 'APPROACHING_SENT', 'OVERDUE_SENT'],
+      default: 'NONE',
+    },
   },
   {
     timestamps: true, // createdAt + updatedAt

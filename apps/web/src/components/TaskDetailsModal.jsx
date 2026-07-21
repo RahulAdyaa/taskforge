@@ -9,6 +9,14 @@ import ActivityTimeline from './ActivityTimeline';
 import { useSocket } from '../context/SocketContext';
 import { Pencil, Trash2, Info, Check, X } from 'lucide-react';
 
+const toLocalISOString = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+};
+
 export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
@@ -160,6 +168,8 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
 
   // Re-fetch the active task from projectTasks to ensure we have fresh blockedBy data
   const activeTask = projectTasks.find(t => t.id === task.id) || task;
+  const canEdit = true;
+  const members = project?.members || [];
   const availableTasks = projectTasks.filter(t => t.id !== activeTask.id && !activeTask.blockedBy?.find(b => b.id === t.id));
 
   // REST API fallbacks for comments (used when WebSockets are disconnected, e.g. on Vercel)
@@ -236,6 +246,20 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
       queryClient.invalidateQueries(['tasks', projectId]);
     },
     onError: () => toast.error('Failed to update labels')
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: async (updatedFields) => {
+      const { data } = await api.patch(`/projects/${projectId}/tasks/${task.id}`, updatedFields);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tasks', projectId]);
+      toast.success('Protocol updated.');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to update protocol');
+    }
   });
 
   const createLabelMutation = useMutation({
@@ -376,11 +400,81 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm font-mono text-black/60 flex-wrap">
-            <span className={`px-2 py-0.5 rounded text-xs font-bold ${getPriorityColor(task.priority)}`}>
-              {task.priority}
+            {/* Priority */}
+            <div>
+              Priority:{' '}
+              {canEdit ? (
+                <select
+                  value={activeTask.priority}
+                  onChange={(e) => updateTaskMutation.mutate({ priority: e.target.value })}
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-bold outline-none cursor-pointer focus:border-black text-xs"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="URGENT">Urgent</option>
+                </select>
+              ) : (
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${getPriorityColor(activeTask.priority)}`}>
+                  {activeTask.priority}
+                </span>
+              )}
+            </div>
+
+            {/* Status */}
+            <span>
+              Status:{' '}
+              {canEdit ? (
+                <select
+                  value={activeTask.status}
+                  onChange={(e) => updateTaskMutation.mutate({ status: e.target.value })}
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-bold outline-none cursor-pointer focus:border-black text-xs"
+                >
+                  <option value="TODO">Todo</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="DONE">Done</option>
+                </select>
+              ) : (
+                <strong className="text-black">{activeTask.status}</strong>
+              )}
             </span>
-            <span>Status: <strong className="text-black">{task.status}</strong></span>
-            <span>Assignee: <strong className="text-black">{task.assignee?.name || 'Unassigned'}</strong></span>
+
+            {/* Assignee */}
+            <span>
+              Assignee:{' '}
+              {canEdit ? (
+                <select
+                  value={activeTask.assigneeId || ''}
+                  onChange={(e) => updateTaskMutation.mutate({ assigneeId: e.target.value || null })}
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-bold outline-none cursor-pointer focus:border-black text-xs"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map(m => (
+                    <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <strong className="text-black">{activeTask.assignee?.name || 'Unassigned'}</strong>
+              )}
+            </span>
+
+            {/* Due Date (Deadline) */}
+            <span>
+              Due:{' '}
+              {canEdit ? (
+                <input
+                  type="datetime-local"
+                  value={toLocalISOString(activeTask.dueDate)}
+                  onChange={(e) => updateTaskMutation.mutate({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-mono outline-none cursor-pointer focus:border-black text-xs min-w-[190px] w-48"
+                />
+              ) : (
+                <strong className="text-black font-mono">
+                  {activeTask.dueDate ? new Date(activeTask.dueDate).toLocaleString() : 'None'}
+                </strong>
+              )}
+            </span>
+
             <div className="relative" ref={labelDropdownRef}>
               <button 
                 onClick={() => setShowLabelDropdown(!showLabelDropdown)}

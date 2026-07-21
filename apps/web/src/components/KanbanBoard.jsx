@@ -279,7 +279,7 @@ function TaskCardUI({ task, projectId, isOverlay }) {
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#E8E4DD]/50">
         <div className="flex items-center gap-3">
           <div className="font-mono text-xs text-black/60">
-            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'Double-click to open'}
+            {task.dueDate ? new Date(task.dueDate).toLocaleString() : 'Double-click to open'}
           </div>
           {projectId && !isOverlay && <TaskCardTimer taskId={task.id} projectId={projectId} />}
         </div>

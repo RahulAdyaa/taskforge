@@ -109,6 +109,77 @@ const sendResetOtpEmail = async (email, name, otp) => {
   }
 };
 
+const sendDeadlineEmail = async (email, name, taskTitle, dueDate, status) => {
+  const mailTransporter = await getTransporter();
+  
+  const isApproaching = status === 'approaching';
+  const subject = isApproaching 
+    ? `Task Deadline Approaching: ${taskTitle}`
+    : `Task Deadline Passed: ${taskTitle}`;
+    
+  const formattedDueDate = new Date(dueDate).toLocaleString();
+
+  const text = `Hello ${name},\n\nThis is a reminder that the task "${taskTitle}" ${
+    isApproaching ? `deadline is approaching: ${formattedDueDate}` : `deadline has passed: ${formattedDueDate}`
+  }.\n\nPlease check your dashboard.\n\nBest regards,\nTaskForge Team`;
+  
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 30px; border: 1px solid #E8E4DD; border-radius: 24px; background-color: #FAF9F6; color: #18181B;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; border-bottom: 3px solid #E63B2E; padding-bottom: 6px; text-transform: uppercase;">TASKFORGE</span>
+      </div>
+      
+      <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: #111111; text-align: center;">
+        ${isApproaching ? 'Deadline Approaching' : 'Deadline Passed'}
+      </h2>
+      
+      <p style="font-size: 14px; line-height: 1.6; color: #52525B;">Hello <strong>${name}</strong>,</p>
+      <p style="font-size: 14px; line-height: 1.6; color: #52525B;">
+        This is a notification for your task: <strong>${taskTitle}</strong>.
+      </p>
+      
+      <div style="background-color: #EEEBE4; border: 2px solid #E4E2DC; border-radius: 16px; padding: 20px; text-align: center; margin: 28px 0;">
+        <span style="font-size: 16px; font-weight: 600; color: #E63B2E;">Due: ${formattedDueDate}</span>
+      </div>
+      
+      <p style="font-size: 14px; line-height: 1.6; color: #52525B; text-align: center;">
+        ${isApproaching ? 'Please ensure you complete this task before the deadline.' : 'This task is now overdue.'}
+      </p>
+      
+      <div style="border-top: 1px solid #E8E4DD; padding-top: 18px; margin-top: 20px;">
+        <p style="font-size: 11px; line-height: 1.5; color: #A1A1AA; text-align: center;">
+          This is an automated reminder from TaskForge.
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    const info = await mailTransporter.sendMail({
+      from: process.env.EMAIL_FROM || '"TaskForge Notifications" <notifications@taskforge.com>',
+      to: email,
+      subject,
+      text,
+      html,
+    });
+
+    if (mailTransporter.isTest) {
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(`\n==================================================`);
+      console.log(`📬 [ETHEREAL SMTP] Deadline Email sent to: ${email}`);
+      console.log(`🔗 [PREVIEW LINK]: ${previewUrl}`);
+      console.log(`==================================================\n`);
+      return { ...info, previewUrl };
+    }
+    
+    return info;
+  } catch (error) {
+    console.error('Mailer send error:', error);
+    throw error;
+  }
+};
+
 module.exports = {
-  sendResetOtpEmail
+  sendResetOtpEmail,
+  sendDeadlineEmail
 };
