@@ -220,12 +220,22 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
 });
 
 // POST create task
-router.post('/', requireProjectRole(['ADMIN']), validate(createTaskSchema), async (req, res, next) => {
+router.post('/', requireProjectRole(['ADMIN', 'MEMBER']), validate(createTaskSchema), async (req, res, next) => {
   try {
     const projectId = req.params.projectId;
     const { title, description, dueDate, priority, assigneeId, labelIds } = req.body;
+
+    const trimmedTitle = title.trim();
+    const existingTask = await Task.findOne({
+      projectId,
+      title: { $regex: new RegExp(`^${trimmedTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
+    if (existingTask) {
+      return res.status(400).json({ error: 'A task with this title already exists in this project' });
+    }
+
     const task = await Task.create({
-      title, description, dueDate, priority, status: 'TODO',
+      title: trimmedTitle, description, dueDate, priority, status: 'TODO',
       projectId, assigneeId, creatorId: req.user.id,
       labels: labelIds || [],
     });
@@ -318,6 +328,19 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     if (labelIds !== undefined) updateData.labels = labelIds;
     if (req.body.dueDate !== undefined) {
       updateData.deadlineNotificationStatus = 'NONE';
+    }
+
+    if (updateData.title) {
+      const trimmedTitle = updateData.title.trim();
+      const duplicate = await Task.findOne({
+        _id: { $ne: req.params.taskId },
+        projectId: req.params.projectId,
+        title: { $regex: new RegExp(`^${trimmedTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      });
+      if (duplicate) {
+        return res.status(400).json({ error: 'A task with this title already exists in this project' });
+      }
+      updateData.title = trimmedTitle;
     }
 
     // Check dependency blockers
