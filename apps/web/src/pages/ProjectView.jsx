@@ -749,7 +749,14 @@ function AITaskModal({ projectId, members, labels, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className={`bg-[#111111] text-[#E8E4DD] rounded-3xl shadow-2xl border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out] overflow-hidden flex flex-col ${step === 'review' ? 'w-full max-w-4xl max-h-[85vh]' : 'w-full max-w-xl'}`}>
         
         {/* Header */}
@@ -973,7 +980,14 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex justify-end">
+    <div 
+      className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex justify-end"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="w-full max-w-md bg-white h-full border-l border-[#E8E4DD] shadow-2xl p-8 animate-[slideIn_0.3s_ease-out]">
         <div className="flex justify-between items-center mb-8">
           <h2 className="font-display font-extrabold text-3xl tracking-tight">New Protocol</h2>
@@ -1035,7 +1049,7 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
           </div>
           
           <div className="pt-4 mt-auto">
-            <button type="submit" className="w-full bg-black text-white p-4 rounded-xl font-medium" disabled={createMutation.isPending}>
+            <button type="submit" className="w-full bg-signal-red text-white p-4 rounded-xl font-medium hover:opacity-90 transition-all" disabled={createMutation.isPending}>
               Deploy Task
             </button>
           </div>
