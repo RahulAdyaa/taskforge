@@ -3,10 +3,9 @@ const Notification = require('../models/Notification');
 const { sendDeadlineEmail } = require('./mailer');
 
 function startScheduler(io) {
-  console.log('⏰ [SCHEDULER] Starting background task deadline monitor (runs every 60s)...');
+  console.log('⏰ [SCHEDULER] Starting background task deadline monitor (runs every 30s)...');
   
-  // Run check every 60 seconds
-  setInterval(async () => {
+  const checkDeadlines = async () => {
     try {
       const now = new Date();
       const approachingWindow = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes from now
@@ -99,7 +98,13 @@ function startScheduler(io) {
     } catch (err) {
       console.error('❌ [SCHEDULER] Error running deadline scheduler:', err);
     }
-  }, 60000);
+  };
+
+  // Run initial check immediately on boot
+  checkDeadlines();
+
+  // Run check every 30 seconds
+  setInterval(checkDeadlines, 30000);
 }
 
 module.exports = { startScheduler };
