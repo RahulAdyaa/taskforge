@@ -38,7 +38,7 @@ export default function Dashboard() {
       setNewProjectName('');
       toast.success('Project initialized.');
     },
-    onError: () => toast.error('Failed to initialize project.')
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to initialize project.')
   });
 
   const joinMutation = useMutation({

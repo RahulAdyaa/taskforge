@@ -97,7 +97,22 @@ router.get('/', async (req, res, next) => {
 router.post('/', validate(createProjectSchema), async (req, res, next) => {
   try {
     const { name, description } = req.body;
-    const project = await Project.create({ name, description });
+    const trimmedName = name.trim();
+
+    // Check if user already has a project with this name (case-insensitive)
+    const userMemberships = await ProjectMember.find({ userId: req.user.id }).select('projectId').lean();
+    const userProjectIds = userMemberships.map(m => m.projectId);
+
+    const existingProject = await Project.findOne({
+      _id: { $in: userProjectIds },
+      name: { $regex: new RegExp(`^${trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
+
+    if (existingProject) {
+      return res.status(400).json({ error: 'You already have a project with this name' });
+    }
+
+    const project = await Project.create({ name: trimmedName, description });
     await ProjectMember.create({ userId: req.user.id, projectId: project.id, role: 'ADMIN' });
     res.status(201).json(project);
   } catch (error) { next(error); }
