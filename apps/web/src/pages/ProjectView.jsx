@@ -988,20 +988,20 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex justify-end"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-end"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-md bg-white h-full border-l border-[#E8E4DD] shadow-2xl p-8 animate-[slideIn_0.3s_ease-out]">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="font-display font-extrabold text-3xl tracking-tight">New Protocol</h2>
-          <button onClick={onClose} className="text-black/50 hover:text-black">✕</button>
+      <div className="w-full max-w-md bg-white dark:bg-[#121215] h-full border-l border-[#E8E4DD] dark:border-white/10 shadow-2xl p-4 sm:p-8 flex flex-col overflow-y-auto animate-[slideIn_0.3s_ease-out]">
+        <div className="flex justify-between items-center mb-6 shrink-0">
+          <h2 className="font-display font-extrabold text-2xl sm:text-3xl tracking-tight text-black dark:text-white">New Protocol</h2>
+          <button onClick={onClose} className="p-2 text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white rounded-lg transition-colors">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 space-y-5">
           <div>
             <label className="block font-mono text-sm mb-2">Designation</label>
             <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border border-[#E8E4DD] p-3 rounded-xl focus:border-black outline-none" />
@@ -1055,9 +1055,13 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
             </div>
           </div>
           
-          <div className="pt-4 mt-auto">
-            <button type="submit" className="w-full bg-signal-red text-white p-4 rounded-xl font-medium hover:opacity-90 transition-all" disabled={createMutation.isPending}>
-              Deploy Task
+          <div className="sticky bottom-0 bg-white dark:bg-[#121215] pt-4 pb-6 mt-auto border-t border-[#E8E4DD] dark:border-white/10 z-20">
+            <button 
+              type="submit" 
+              className="w-full bg-signal-red text-white p-4 rounded-xl font-medium text-base hover:opacity-90 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2" 
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? 'Deploying...' : 'Deploy Task'}
             </button>
           </div>
         </form>
