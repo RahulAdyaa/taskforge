@@ -161,4 +161,4 @@ function stopScheduler() {
   }
 }
 
-module.exports = { startScheduler, stopScheduler };
+module.exports = { startScheduler, stopScheduler, checkDeadlines };

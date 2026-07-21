@@ -16,6 +16,7 @@ const myTasksRoutes = require('./routes/my-tasks');
 const notificationsRoutes = require('./routes/notifications');
 const standupRoutes = require('./routes/standup');
 const settingsRoutes = require('./routes/settings');
+const cronRoutes = require('./routes/cron');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -111,6 +112,7 @@ app.use('/api/my-tasks', myTasksRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/standup', standupRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/cron', cronRoutes);
 
 // Tasks and dashboard routes are nested under projects
 projectRoutes.use('/:projectId/tasks', taskRoutes);
