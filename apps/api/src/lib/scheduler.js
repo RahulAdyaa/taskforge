@@ -1,5 +1,4 @@
-const Task = require('../models/Task');
-const Notification = require('../models/Notification');
+const { Task, Notification, User } = require('../models');
 const { sendDeadlineEmail } = require('./mailer');
 
 let schedulerInterval = null;
