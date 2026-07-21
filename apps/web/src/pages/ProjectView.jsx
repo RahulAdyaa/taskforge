@@ -10,6 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import NotificationBell from '../components/NotificationBell';
 import TaskFilters, { applyFilters } from '../components/TaskFilters';
 import ThemeToggle from '../components/ThemeToggle';
+import StandupModal from '../components/StandupModal';
 import { useSocket } from '../context/SocketContext';
 
 const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
@@ -22,6 +23,7 @@ export default function ProjectView() {
   const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'dashboard'
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showStandup, setShowStandup] = useState(false);
   const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
   
   const { socket, isConnected, onlineUsers } = useSocket();
@@ -657,6 +659,10 @@ export default function ProjectView() {
           labels={labels || []}
           onClose={() => setShowAIModal(false)}
         />
+      )}
+
+      {showStandup && (
+        <StandupModal onClose={() => setShowStandup(false)} />
       )}
     </div>
   );

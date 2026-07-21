@@ -51,7 +51,7 @@ export default function MyTasks() {
   return (
     <div className="min-h-screen bg-off-white flex flex-col lg:flex-row">
       {/* Mobile Top Header Navigation */}
-      <MobileHeader />
+      <MobileHeader onOpenStandup={() => setShowStandup(true)} />
 
       {/* Desktop Permanent Sidebar */}
       <div className="hidden lg:flex w-64 bg-[#F5F3EE] border-r border-[#E8E4DD] flex-col p-6 fixed h-full z-20">

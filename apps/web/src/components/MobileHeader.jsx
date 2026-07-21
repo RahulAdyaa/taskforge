@@ -6,7 +6,7 @@ import ThemeToggle from './ThemeToggle';
 import { useAuthStore } from '../store/authStore';
 import api from '../lib/axios';
 
-export default function MobileHeader({ projects = [] }) {
+export default function MobileHeader({ projects = [], onOpenStandup }) {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const user = useAuthStore(state => state.user);
@@ -110,6 +110,18 @@ export default function MobileHeader({ projects = [] }) {
                 <SettingsIcon className="w-5 h-5" />
                 <span>Account Settings</span>
               </Link>
+
+              {/* AI Standup Option */}
+              <button 
+                onClick={() => {
+                  setIsOpen(false);
+                  if (onOpenStandup) onOpenStandup();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-black/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/5 transition-all text-left font-medium"
+              >
+                <Sparkles className="w-5 h-5 text-signal-red" />
+                <span>AI Standup</span>
+              </button>
 
               {/* Projects List Section in Drawer */}
               {projects.length > 0 && (
