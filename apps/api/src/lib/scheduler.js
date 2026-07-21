@@ -2,109 +2,163 @@ const Task = require('../models/Task');
 const Notification = require('../models/Notification');
 const { sendDeadlineEmail } = require('./mailer');
 
-function startScheduler(io) {
-  console.log('⏰ [SCHEDULER] Starting background task deadline monitor (runs every 30s)...');
-  
-  const checkDeadlines = async () => {
-    try {
-      const now = new Date();
-      const approachingWindow = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes from now
+let schedulerInterval = null;
+let isRunning = false;
 
-      // 1. Find tasks whose deadline is approaching (due in <= 15 minutes, not notified yet, status not DONE)
-      const approachingTasks = await Task.find({
-        dueDate: { $gt: now, $lte: approachingWindow },
-        status: { $ne: 'DONE' },
-        deadlineNotificationStatus: { $in: ['NONE', null] }
-      }).populate('assigneeId creatorId');
+async function checkDeadlines(io) {
+  if (isRunning) {
+    console.log('⏰ [SCHEDULER] Previous check still in progress. Skipping overlapping execution.');
+    return;
+  }
 
-      for (const task of approachingTasks) {
-        const targets = [];
-        if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
-        if (task.creatorId && task.creatorId.email && (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())) {
-          targets.push(task.creatorId);
-        }
+  isRunning = true;
 
-        // Mark as approaching notified
-        task.deadlineNotificationStatus = 'APPROACHING_SENT';
-        await task.save();
+  try {
+    const now = new Date();
+    const approachingWindow = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes from now
 
-        console.log(`⏰ [SCHEDULER] Task "${task.title}" is approaching deadline. Notifying ${targets.length} user(s)...`);
+    const notificationsToInsert = [];
+    const createdNotificationPayloads = [];
 
-        for (const user of targets) {
-          const userId = user._id || user.id;
-          // Create in-app notification
-          const notification = await Notification.create({
-            userId: userId,
-            type: 'DEADLINE_APPROACHING',
-            message: `Oh, your deadline is approaching for task: ${task.title}`,
-            link: `/app/projects/${task.projectId}?task=${task.id}`
-          });
+    // 1. Find tasks whose deadline is approaching (due in <= 15 minutes, not notified yet, status not DONE)
+    const candidatesApproaching = await Task.find({
+      dueDate: { $exists: true, $ne: null, $gt: now, $lte: approachingWindow },
+      status: { $ne: 'DONE' },
+      deadlineNotificationStatus: { $in: ['NONE', null] }
+    }).select('_id deadlineNotificationStatus').lean();
 
-          // Emit real-time socket event if io is available
-          if (io) {
-            io.to(`user_${userId.toString()}`).emit('notification', notification);
-          }
+    for (const candidate of candidatesApproaching) {
+      // Atomic claim to handle multiple backend instances/clusters safely
+      const task = await Task.findOneAndUpdate(
+        {
+          _id: candidate._id,
+          deadlineNotificationStatus: candidate.deadlineNotificationStatus
+        },
+        { $set: { deadlineNotificationStatus: 'APPROACHING_SENT' } },
+        { new: true }
+      )
+        .populate('assigneeId', '_id name email')
+        .populate('creatorId', '_id name email');
 
-          // Send email if user has email (runs asynchronously in background)
-          if (user.email) {
-            sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'approaching')
-              .catch(err => console.error(`❌ [SCHEDULER] Failed to send approaching email to ${user.email}:`, err));
-          }
-        }
+      if (!task) continue; // Already claimed by another execution instance
+
+      const targets = [];
+      if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
+      if (
+        task.creatorId &&
+        task.creatorId.email &&
+        (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())
+      ) {
+        targets.push(task.creatorId);
       }
 
-      // 2. Find tasks whose deadline has passed (due <= now, not notified of overdue yet, status not DONE)
-      const overdueTasks = await Task.find({
-        dueDate: { $lte: now },
-        status: { $ne: 'DONE' },
-        deadlineNotificationStatus: { $in: ['NONE', 'APPROACHING_SENT', null] }
-      }).populate('assigneeId creatorId');
+      console.log(`⏰ [SCHEDULER] Task "${task.title}" is due in less than 15 minutes. Notifying ${targets.length} user(s)...`);
 
-      for (const task of overdueTasks) {
-        const targets = [];
-        if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
-        if (task.creatorId && task.creatorId.email && (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())) {
-          targets.push(task.creatorId);
-        }
+      for (const user of targets) {
+        const userId = user._id || user.id;
+        const msg = `Task "${task.title}" is due in less than 15 minutes.`;
 
-        // Mark as overdue notified
-        task.deadlineNotificationStatus = 'OVERDUE_SENT';
-        await task.save();
+        notificationsToInsert.push({
+          userId,
+          type: 'DEADLINE_APPROACHING',
+          message: msg,
+          link: `/app/projects/${task.projectId}?task=${task.id}`
+        });
 
-        console.log(`⏰ [SCHEDULER] Task "${task.title}" has passed deadline. Notifying ${targets.length} user(s)...`);
-
-        for (const user of targets) {
-          const userId = user._id || user.id;
-          // Create in-app notification
-          const notification = await Notification.create({
-            userId: userId,
-            type: 'DEADLINE_PASSED',
-            message: `Deadline has passed: ${task.title}`,
-            link: `/app/projects/${task.projectId}?task=${task.id}`
-          });
-
-          // Emit real-time socket event if io is available
-          if (io) {
-            io.to(`user_${userId.toString()}`).emit('notification', notification);
-          }
-
-          // Send email if user has email (runs asynchronously in background)
-          if (user.email) {
-            sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'overdue')
-              .catch(err => console.error(`❌ [SCHEDULER] Failed to send overdue email to ${user.email}:`, err));
-          }
+        if (user.email) {
+          sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'approaching')
+            .catch(err => console.error(`❌ [SCHEDULER] Failed to send approaching email to ${user.email}:`, err));
         }
       }
-    } catch (err) {
-      console.error('❌ [SCHEDULER] Error running deadline scheduler:', err);
     }
-  };
 
-  // Run initial check immediately on boot
-  checkDeadlines();
+    // 2. Find tasks whose deadline has passed (due <= now, not notified of overdue yet, status not DONE)
+    const candidatesOverdue = await Task.find({
+      dueDate: { $exists: true, $ne: null, $lte: now },
+      status: { $ne: 'DONE' },
+      deadlineNotificationStatus: { $in: ['NONE', 'APPROACHING_SENT', null] }
+    }).select('_id deadlineNotificationStatus').lean();
 
-  // Run check every 30 seconds
-  setInterval(checkDeadlines, 30000);
+    for (const candidate of candidatesOverdue) {
+      // Atomic claim to handle multiple backend instances/clusters safely
+      const task = await Task.findOneAndUpdate(
+        {
+          _id: candidate._id,
+          deadlineNotificationStatus: candidate.deadlineNotificationStatus
+        },
+        { $set: { deadlineNotificationStatus: 'OVERDUE_SENT' } },
+        { new: true }
+      )
+        .populate('assigneeId', '_id name email')
+        .populate('creatorId', '_id name email');
+
+      if (!task) continue; // Already claimed by another execution instance
+
+      const targets = [];
+      if (task.assigneeId && task.assigneeId.email) targets.push(task.assigneeId);
+      if (
+        task.creatorId &&
+        task.creatorId.email &&
+        (!task.assigneeId || (task.creatorId._id || task.creatorId.id)?.toString() !== (task.assigneeId._id || task.assigneeId.id)?.toString())
+      ) {
+        targets.push(task.creatorId);
+      }
+
+      console.log(`⏰ [SCHEDULER] Task "${task.title}" deadline has passed. Notifying ${targets.length} user(s)...`);
+
+      for (const user of targets) {
+        const userId = user._id || user.id;
+        const msg = `Task "${task.title}" deadline has passed.`;
+
+        notificationsToInsert.push({
+          userId,
+          type: 'DEADLINE_PASSED',
+          message: msg,
+          link: `/app/projects/${task.projectId}?task=${task.id}`
+        });
+
+        if (user.email) {
+          sendDeadlineEmail(user.email, user.name, task.title, task.dueDate, 'overdue')
+            .catch(err => console.error(`❌ [SCHEDULER] Failed to send overdue email to ${user.email}:`, err));
+        }
+      }
+    }
+
+    // Batch insert in-app notifications
+    if (notificationsToInsert.length > 0) {
+      const insertedDocs = await Notification.insertMany(notificationsToInsert);
+      if (io) {
+        for (const doc of insertedDocs) {
+          io.to(`user_${doc.userId.toString()}`).emit('notification', doc);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('❌ [SCHEDULER] Error running deadline scheduler:', err);
+  } finally {
+    isRunning = false;
+  }
 }
 
-module.exports = { startScheduler };
+function startScheduler(io) {
+  console.log('⏰ [SCHEDULER] Starting background task deadline monitor (runs every 30s)...');
+
+  // Run initial check immediately on boot
+  checkDeadlines(io);
+
+  // Store interval reference for graceful shutdown
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+  }
+  schedulerInterval = setInterval(() => checkDeadlines(io), 30000);
+}
+
+function stopScheduler() {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+    schedulerInterval = null;
+    console.log('🛑 [SCHEDULER] Stopped background task deadline monitor.');
+  }
+}
+
+module.exports = { startScheduler, stopScheduler };
