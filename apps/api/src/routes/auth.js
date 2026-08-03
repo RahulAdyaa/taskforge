@@ -43,6 +43,7 @@ async function recordSession(user, req, isSuccess = true) {
 
   let sessionId = null;
   if (isSuccess) {
+    user.lastLoginAt = new Date();
     sessionId = crypto.randomBytes(16).toString('hex');
     user.activeSessions.push({
       id: sessionId,
@@ -223,7 +224,19 @@ router.post('/refresh', async (req, res, next) => {
   }
 });
 
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+  try {
+    const token = req.cookies?.refreshToken;
+    if (token) {
+      try {
+        const payload = verifyRefreshToken(token);
+        if (payload?.userId) {
+          await User.findByIdAndUpdate(payload.userId, { lastLogoutAt: new Date() });
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+
   res.clearCookie('refreshToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

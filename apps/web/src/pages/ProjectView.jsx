@@ -11,6 +11,7 @@ import NotificationBell from '../components/NotificationBell';
 import TaskFilters, { applyFilters } from '../components/TaskFilters';
 import ThemeToggle from '../components/ThemeToggle';
 import StandupModal from '../components/StandupModal';
+import VoiceAgentController from '../components/VoiceAgentController';
 import { useSocket } from '../context/SocketContext';
 
 const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
@@ -722,6 +723,44 @@ function AITaskModal({ projectId, members, labels, onClose }) {
     }
   });
 
+  const voiceParseMutation = useMutation({
+    mutationFn: async ({ transcript }) => {
+      const res = await api.post(`/projects/${projectId}/tasks/ai-voice-parse`, {
+        transcript,
+        tasks: generatedTasks,
+        members: members || []
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data?.updates && Array.isArray(data.updates)) {
+        setGeneratedTasks(prev => prev.map((t, i) => {
+          const update = data.updates.find(u => u._id === t._id || u._id === i);
+          if (!update) return t;
+          return {
+            ...t,
+            assigneeId: update.assigneeId !== undefined && update.assigneeId !== null ? update.assigneeId : t.assigneeId,
+            dueDate: update.dueDate !== undefined && update.dueDate !== null ? update.dueDate : t.dueDate,
+            priority: update.priority || t.priority,
+            _enabled: update.enabled !== undefined ? update.enabled : t._enabled
+          };
+        }));
+        toast.success('🎙️ Spoken task configuration applied!');
+      }
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Voice command parsing failed');
+    }
+  });
+
+  const handleVoiceSubmit = (transcriptText, onDone) => {
+    voiceParseMutation.mutate({ transcript: transcriptText }, {
+      onSuccess: () => {
+        if (onDone) onDone();
+      }
+    });
+  };
+
   const handlePreview = (e) => {
     e.preventDefault();
     if (!prompt.trim()) return;
@@ -832,23 +871,27 @@ function AITaskModal({ projectId, members, labels, onClose }) {
         {/* Step 2: Review & Configure */}
         {step === 'review' && (
           <>
-            {/* Prompt reminder */}
-            <div className="px-8 py-3 bg-[#1A1A1A] border-b border-[#E8E4DD]/10 shrink-0">
+            {/* Prompt reminder & Voice Assistant Toolbar */}
+            <div className="px-6 py-3 bg-[#1A1A1A] border-b border-[#E8E4DD]/10 shrink-0 flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-[#E8E4DD]/40 uppercase tracking-widest">Objective:</span>
                 <span className="font-mono text-xs text-[#E8E4DD]/70 truncate">{prompt}</span>
               </div>
+              <VoiceAgentController 
+                onVoiceSubmit={handleVoiceSubmit} 
+                isParsing={voiceParseMutation.isPending} 
+              />
             </div>
 
             {/* Task List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
-              {generatedTasks.map((task) => (
+              {generatedTasks.map((task, index) => (
                 <div 
                   key={task._id} 
                   className={`rounded-2xl border transition-all ${task._enabled ? 'bg-[#1A1A1A] border-[#E8E4DD]/20' : 'bg-[#0D0D0D] border-[#E8E4DD]/5 opacity-40'}`}
                 >
                   {/* Task Title Row */}
-                  <div className="flex items-center gap-4 px-5 py-4">
+                  <div className="flex items-center gap-3 px-5 py-4">
                     <button
                       onClick={() => toggleTask(task._id)}
                       className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${task._enabled ? 'bg-[#E63B2E] border-[#E63B2E] text-white' : 'border-[#E8E4DD]/30 hover:border-[#E8E4DD]/60'}`}
@@ -856,6 +899,10 @@ function AITaskModal({ projectId, members, labels, onClose }) {
                       {task._enabled && <span className="text-xs">✓</span>}
                     </button>
                     
+                    <span className="font-mono text-xs font-bold text-[#E63B2E] bg-[#E63B2E]/10 border border-[#E63B2E]/30 px-2 py-1 rounded-md shrink-0 shadow-sm">
+                      #{index + 1}
+                    </span>
+
                     <input
                       type="text"
                       value={task.title}

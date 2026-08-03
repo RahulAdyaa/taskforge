@@ -622,12 +622,12 @@ router.get('/analytics', async (req, res, next) => {
 const { z } = require('zod');
 const validate = require('../middleware/validate');
 
-// OpenRouter AI models for global settings chat (100% free models, prioritized for speed and code intelligence)
+// OpenRouter AI models for global settings chat (100% free models, prioritized for speed and stability)
 const OPENROUTER_MODELS = [
-  'poolside/laguna-xs.2:free',
-  'google/gemma-4-31b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
   'openrouter/free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'google/gemma-2-9b-it:free',
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {

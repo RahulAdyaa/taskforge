@@ -98,7 +98,9 @@ const userSchema = new mongoose.Schema(
     dashboardLayout: { type: String, default: 'kanban' },
     profileVisibility: { type: String, default: 'public' },
 
-    // --- Security ---
+    // --- Security & Activity Timestamps ---
+    lastLoginAt: { type: Date, default: null },
+    lastLogoutAt: { type: Date, default: null },
     twoFactorEnabled: { type: Boolean, default: false },
     twoFactorSecret: { type: String, default: null },
     activeSessions: [{

@@ -76,12 +76,12 @@ const aiGenerateSchema = z.object({
   })).optional(),
 });
 
-// OpenRouter AI models (100% free models, prioritized for speed and code intelligence)
+// OpenRouter AI models (100% free models, prioritized for speed and stability)
 const OPENROUTER_MODELS = [
-  'poolside/laguna-xs.2:free',
-  'google/gemma-4-31b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
   'openrouter/free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'google/gemma-2-9b-it:free',
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, prompt) => {
@@ -161,6 +161,137 @@ Example output: [{"title":"Design database schema for users table with email, pa
   throw lastError || new Error('All OpenRouter models failed');
 };
 
+const fallbackVoiceParser = (transcript, tasks, members, now = new Date()) => {
+  const text = (transcript || '').toLowerCase();
+  const updates = [];
+  const numberWords = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+  
+  (tasks || []).forEach((task, idx) => {
+    const taskNum = idx + 1;
+    const wordNum = numberWords[idx] || `task ${taskNum}`;
+    
+    const isTargeted = text.includes(wordNum) || text.includes(`task ${taskNum}`) || text.includes(`item ${taskNum}`) || (tasks.length === 1);
+    
+    let assigneeId = task.assigneeId || null;
+    let dueDate = task.dueDate || null;
+    let priority = task.priority || 'MEDIUM';
+
+    (members || []).forEach(m => {
+      const userObj = m.user || m;
+      const nameParts = (userObj.name || '').toLowerCase().split(' ');
+      if (nameParts.some(part => part.length > 2 && text.includes(part))) {
+        if (isTargeted || (tasks.length <= 3 && !text.includes('first') && !text.includes('second'))) {
+          assigneeId = userObj.id || userObj._id?.toString();
+        }
+      }
+    });
+
+    if (isTargeted || tasks.length === 1) {
+      if (text.includes('urgent')) priority = 'URGENT';
+      else if (text.includes('high')) priority = 'HIGH';
+      else if (text.includes('medium')) priority = 'MEDIUM';
+      else if (text.includes('low')) priority = 'LOW';
+
+      if (text.includes('tomorrow')) {
+        const d = new Date(now);
+        d.setDate(d.getDate() + 1);
+        if (text.includes('5pm') || text.includes('5 pm')) d.setHours(17, 0, 0, 0);
+        else if (text.includes('9am') || text.includes('9 am')) d.setHours(9, 0, 0, 0);
+        else d.setHours(18, 0, 0, 0);
+        dueDate = d.toISOString();
+      } else if (text.includes('today')) {
+        const d = new Date(now);
+        if (text.includes('5pm') || text.includes('5 pm')) d.setHours(17, 0, 0, 0);
+        else d.setHours(18, 0, 0, 0);
+        dueDate = d.toISOString();
+      } else if (text.includes('next week') || text.includes('next monday')) {
+        const d = new Date(now);
+        d.setDate(d.getDate() + 7);
+        dueDate = d.toISOString();
+      }
+    }
+
+    updates.push({
+      _id: task._id !== undefined ? task._id : idx,
+      assigneeId,
+      dueDate,
+      priority,
+      enabled: true
+    });
+  });
+
+  return updates;
+};
+
+const parseVoiceCommandsWithAI = async (transcript, tasks, members) => {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const now = new Date();
+  const dateContext = `Current Time: ${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
+
+  const memberListForPrompt = (members || []).map(m => {
+    const userObj = m.user || m;
+    return { id: userObj.id || userObj._id?.toString(), name: userObj.name, email: userObj.email };
+  });
+
+  const taskListForPrompt = (tasks || []).map((t, idx) => ({
+    _id: t._id !== undefined ? t._id : idx,
+    index: idx + 1,
+    title: t.title,
+    currentPriority: t.priority || 'MEDIUM',
+    currentAssigneeId: t.assigneeId || null,
+    currentDueDate: t.dueDate || null,
+  }));
+
+  const systemPrompt = `You are an AI Voice Command Assistant for task management.
+${dateContext}
+
+The user is speaking natural language commands to update/assign tasks in a project breakdown modal.
+
+Tasks currently listed:
+${JSON.stringify(taskListForPrompt, null, 2)}
+
+Available project team members:
+${JSON.stringify(memberListForPrompt, null, 2)}
+
+INSTRUCTIONS:
+1. Parse the voice transcript and identify instructions for each task (e.g., "First task...", "Task 2...", "Task assigned to Rahul", "deadline tomorrow 5pm", "priority urgent").
+2. Match spoken member names (e.g. "Rahul", "Sarah") to the exact member "id" from the list above. If unassigned or not mentioned, preserve or set null.
+3. Convert relative dates (e.g., "tomorrow", "tomorrow 5pm", "next Monday", "in 3 days", "next Friday at 10am") into ISO 8601 strings (e.g. "2026-07-30T17:00:00.000Z") based on Current Time.
+4. Priority must be one of: "LOW", "MEDIUM", "HIGH", "URGENT".
+5. Return ONLY a valid JSON array of updated tasks in this exact structure:
+[
+  {
+    "_id": 0,
+    "assigneeId": "member_id_or_null",
+    "dueDate": "ISO_string_or_null",
+    "priority": "HIGH",
+    "enabled": true
+  }
+]
+
+Do NOT include markdown wrapping or explanation. Return raw JSON array only.`;
+
+  if (apiKey) {
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        console.log(`Trying OpenRouter model for voice command parsing: ${model}`);
+        const data = await callOpenRouterAPI(apiKey, model, systemPrompt, transcript);
+        const text = data.choices?.[0]?.message?.content || '';
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const updates = JSON.parse(jsonMatch[0]);
+          return updates;
+        }
+      } catch (err) {
+        console.error(`Model ${model} for voice parsing failed:`, err.message);
+      }
+    }
+  }
+
+  // Fallback parser if API call fails or key is missing
+  return fallbackVoiceParser(transcript, tasks, members, now);
+};
+
 // AI preview
 router.post('/ai-preview', requireProjectRole(['ADMIN']), async (req, res, next) => {
   try {
@@ -168,6 +299,18 @@ router.post('/ai-preview', requireProjectRole(['ADMIN']), async (req, res, next)
     if (!prompt || prompt.length < 5) return res.status(400).json({ error: 'Prompt must be at least 5 characters' });
     const generatedTasks = await generateSubtasksWithAI(prompt);
     res.json({ tasks: generatedTasks });
+  } catch (error) { next(error); }
+});
+
+// AI Voice Command Parser
+router.post('/ai-voice-parse', requireProjectRole(['ADMIN', 'MEMBER']), async (req, res, next) => {
+  try {
+    const { transcript, tasks, members } = req.body;
+    if (!transcript || typeof transcript !== 'string') {
+      return res.status(400).json({ error: 'Transcript string is required' });
+    }
+    const updates = await parseVoiceCommandsWithAI(transcript, tasks, members);
+    res.json({ updates });
   } catch (error) { next(error); }
 });
 
