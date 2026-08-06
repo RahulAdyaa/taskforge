@@ -695,6 +695,13 @@ export default function ProjectView() {
       {showStandup && (
         <StandupModal onClose={() => setShowStandup(false)} />
       )}
+
+      {/* Ask Project AI Slide-Over Co-Pilot Drawer */}
+      <AskProjectAIDrawer 
+        projectId={id} 
+        projectName={project?.name} 
+        tasks={tasks || []} 
+      />
     </div>
   );
 }
@@ -1167,13 +1174,6 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
           </div>
         </form>
       </div>
-
-      {/* Ask Project AI Slide-Over Co-Pilot Drawer */}
-      <AskProjectAIDrawer 
-        projectId={id} 
-        projectName={project?.name} 
-        tasks={tasks || []} 
-      />
     </div>
   );
 }
