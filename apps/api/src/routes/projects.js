@@ -455,6 +455,7 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
     // Fetch tasks in this project
     const tasks = await Task.find({ projectId: req.params.id })
       .populate('assigneeId', 'name email')
+      .populate('blockedBy', 'title status')
       .sort({ createdAt: -1 });
 
     // Count statistics and build summary
@@ -464,7 +465,9 @@ router.post('/:id/chat', requireProjectRole(['ADMIN', 'MEMBER']), validate(chatS
       if (stats[t.status] !== undefined) {
         stats[t.status]++;
       }
-      tasksListSummary += `- [${t.status}] ${t.title} (Priority: ${t.priority}, Assignee: ${t.assigneeId?.name || 'Unassigned'}, Due: ${t.dueDate ? t.dueDate.toDateString() : 'None'}, ID: ${t.id})\n`;
+      const blockers = (t.blockedBy || []).map(b => `${b.title} (${b.status})`);
+      const attachments = (t.attachments || []).map(a => `${a.filename}`);
+      tasksListSummary += `- [${t.status}] Title: "${t.title}" | Priority: ${t.priority} | Assignee: ${t.assigneeId?.name || 'Unassigned'} | Due: ${t.dueDate ? new Date(t.dueDate).toDateString() : 'None'} | ID: ${t._id.toString()}${blockers.length ? ` | BLOCKED BY: [${blockers.join(', ')}]` : ''}${attachments.length ? ` | ATTACHMENTS: [${attachments.join(', ')}]` : ''} | Description: "${t.description || 'No additional description provided'}"\n`;
     });
 
     let summary = `Project Name: ${projectName}\n`;
@@ -530,17 +533,17 @@ TaskForge User Guide, Help Documentation & Feature Reference:
    - "Data & Danger Zone": Export your full account data in JSON format, or delete your account completely.
 `;
 
+    const { getProjectChatPrompt } = require('../config/prompts');
+    const customUserPrompt = req.user.customModelSettings?.systemPrompt;
+
     let replyText = '';
     let lastError;
-    const systemPrompt = `You are the TaskForge AI Assistant. You help users manage their projects and navigate the platform.
-The user is ${req.user.name}.
-Here is the current project status context:
-${summary}
-
-Here is the general TaskForge Help documentation for navigating/using the app:
-${TASKFORGE_KB}
-
-Answer the user's question concisely, naturally, and helpfully in natural language using the provided documentation.`;
+    const systemPrompt = getProjectChatPrompt({
+      userName: req.user.name,
+      summary,
+      taskforgeKb: TASKFORGE_KB,
+      customUserPrompt,
+    });
 
     for (const model of OPENROUTER_MODELS) {
       try {
@@ -568,5 +571,8 @@ Answer the user's question concisely, naturally, and helpfully in natural langua
     res.json({ reply: replyText });
   } catch (error) { next(error); }
 });
+
+const aiCopilotRoutes = require('./ai-copilot');
+router.use('/:projectId/ai-copilot', aiCopilotRoutes);
 
 module.exports = router;

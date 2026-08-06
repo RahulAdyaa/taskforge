@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { useSearchParams } from 'react-router-dom';
+import gsap, { useIsomorphicLayoutEffect, attachSmoothHover } from '../lib/gsap';
 
 import TaskDetailsModal from './TaskDetailsModal';
 import { TaskCardTimer } from './TimeTracker';
@@ -16,6 +17,7 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
   const [selectedTask, setSelectedTask] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const taskIdParam = searchParams.get('task');
+  const boardContainerRef = useRef(null);
 
   useEffect(() => {
     const cols = { TODO: [], IN_PROGRESS: [], DONE: [] };
@@ -24,6 +26,16 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
     });
     setColumns(cols);
   }, [tasks]);
+
+  useEffect(() => {
+    if (boardContainerRef.current && !isLoading) {
+      gsap.fromTo(
+        boardContainerRef.current.children,
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.35, stagger: 0.08, ease: 'power2.out' }
+      );
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     if (taskIdParam && tasks?.length > 0) {
@@ -105,10 +117,10 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
     }
 
     if (task && currentStatus && currentStatus !== newStatus) {
-      if (newStatus === 'DONE') {
+      if (newStatus === 'IN_PROGRESS' || newStatus === 'DONE') {
         const incompleteBlockers = task.blockedBy?.filter(t => t.status !== 'DONE') || [];
         if (incompleteBlockers.length > 0) {
-          toast.error('Cannot complete task. It is blocked by incomplete dependencies.');
+          toast.error(`Cannot move task to ${newStatus.replace('_', ' ')}. Blocked by ${incompleteBlockers.length} incomplete dependency task(s).`);
           return;
         }
       }
@@ -154,7 +166,7 @@ export default function KanbanBoard({ projectId, tasks, isAdmin, members, labels
   }
 
   return (
-    <div className="flex h-full p-2 sm:p-4 gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory bg-off-white pb-6 scrollbar-none">
+    <div ref={boardContainerRef} className="flex h-full p-2 sm:p-4 gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory bg-off-white pb-6 scrollbar-none">
       <DndContext 
         sensors={sensors} 
         collisionDetection={closestCorners} 
@@ -211,7 +223,7 @@ function Column({ id, title, tasks, projectId, onTaskClick }) {
         <span className="font-mono text-xs bg-white px-2 py-1 rounded-md border border-[#E8E4DD]">{tasks.length}</span>
       </div>
       
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+      <div data-lenis-prevent className="flex-1 overflow-y-auto space-y-3 pr-1">
         {tasks.map(task => (
           <TaskCard key={task.id} task={task} projectId={projectId} onClick={() => onTaskClick(task)} />
         ))}
@@ -235,14 +247,26 @@ function TaskCard({ task, projectId, onClick, isOverlay }) {
       onDoubleClick={onClick}
       className={`${isDragging ? 'opacity-30' : ''}`}
     >
-      <TaskCardUI task={task} projectId={projectId} />
+      <TaskCardUI task={task} projectId={projectId} onClick={onClick} />
     </div>
   );
 }
 
-function TaskCardUI({ task, projectId, isOverlay }) {
+function TaskCardUI({ task, projectId, onClick, isOverlay }) {
+  const cardRef = useRef(null);
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
   const isBlocked = task.blockedBy?.some(t => t.status !== 'DONE');
+
+  useIsomorphicLayoutEffect(() => {
+    if (cardRef.current && !isOverlay) {
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, scale: 0.92, y: 15 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: 'back.out(1.4)' }
+      );
+      return attachSmoothHover(cardRef.current, 1.02, -4);
+    }
+  }, [isOverlay]);
 
   const priorityColors = {
     LOW: 'bg-green-100 text-green-800',
@@ -253,7 +277,8 @@ function TaskCardUI({ task, projectId, isOverlay }) {
 
   return (
     <div 
-      className={`bg-white p-5 rounded-2xl border ${isBlocked ? 'border-dashed border-black/30 opacity-80' : isOverdue ? 'border-l-4 border-[#E63B2E]' : 'border-[#E8E4DD]'} shadow-sm ${isOverlay ? 'cursor-grabbing rotate-2 scale-105 shadow-2xl' : 'cursor-grab hover:border-black'} transition-all`}
+      ref={cardRef}
+      className={`bg-white p-5 rounded-2xl border ${isBlocked ? 'border-dashed border-black/30 opacity-80' : isOverdue ? 'border-l-4 border-[#E63B2E]' : 'border-[#E8E4DD]'} shadow-sm ${isOverlay ? 'cursor-grabbing rotate-2 scale-105 shadow-2xl' : 'cursor-grab hover:border-black hover:-translate-y-1 hover:shadow-md'} transition-all duration-200`}
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex gap-2 items-center flex-wrap">
@@ -266,8 +291,13 @@ function TaskCardUI({ task, projectId, isOverlay }) {
             </span>
           ))}
           {isBlocked && (
-            <span className="text-[#E63B2E]" title="Blocked by dependencies">
-              🔒
+            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 border border-amber-500/20 flex items-center gap-1" title={`Blocked by ${task.blockedBy.filter(b => b.status !== 'DONE').length} incomplete dependency task(s)`}>
+              <span>🔒</span> BLOCKED
+            </span>
+          )}
+          {task.estimatedHours && (
+            <span className="font-mono text-[9px] text-black/50 bg-[#F5F3EE] dark:bg-white/10 px-1.5 py-0.5 rounded border border-[#E8E4DD] dark:border-white/10">
+              {task.estimatedHours}h est
             </span>
           )}
         </div>
@@ -279,15 +309,32 @@ function TaskCardUI({ task, projectId, isOverlay }) {
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#E8E4DD]/50">
         <div className="flex items-center gap-3">
           <div className="font-mono text-xs text-black/60">
-            {task.dueDate ? new Date(task.dueDate).toLocaleString() : 'Double-click to open'}
+            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : <span className="text-black/30 italic text-[11px]">No due date</span>}
           </div>
           {projectId && !isOverlay && <TaskCardTimer taskId={task.id} projectId={projectId} />}
         </div>
-        {task.assignee && (
-          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center font-mono text-[10px]" title={task.assignee.name}>
-            {task.assignee.name.substring(0, 2).toUpperCase()}
-          </div>
-        )}
+
+        <div className="flex items-center gap-2">
+          {onClick && !isOverlay && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="font-mono text-[10px] text-black/70 hover:text-black dark:text-white/70 dark:hover:text-white bg-[#F5F3EE] dark:bg-white/10 hover:bg-[#E8E4DD] dark:hover:bg-white/20 px-2 py-0.5 rounded border border-[#E8E4DD] dark:border-white/10 flex items-center gap-1 transition-all cursor-pointer"
+              title="Open task details"
+            >
+              <span>Open</span>
+              <span className="text-[9px]">↗</span>
+            </button>
+          )}
+          {task.assignee && (
+            <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center font-mono text-[10px]" title={task.assignee.name}>
+              {task.assignee.name.substring(0, 2).toUpperCase()}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

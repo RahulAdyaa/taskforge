@@ -8,6 +8,10 @@ import { TaskTimeTracker } from './TimeTracker';
 import ActivityTimeline from './ActivityTimeline';
 import { useSocket } from '../context/SocketContext';
 import { Pencil, Trash2, Info, Check, X } from 'lucide-react';
+import gsap, { useIsomorphicLayoutEffect, animateModalPopup } from '../lib/gsap';
+import { extractYouTubeUrls } from '../lib/youtube';
+import YouTubeEmbedCard from './YouTubeEmbedCard';
+import FileAttachmentsSection from './FileAttachmentsSection';
 
 const toLocalISOString = (date) => {
   if (!date) return '';
@@ -27,6 +31,12 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   const [newLabelColor, setNewLabelColor] = useState('#E8E4DD');
   const chatEndRef = useRef(null);
   const labelDropdownRef = useRef(null);
+  const modalContainerRef = useRef(null);
+  const backdropRef = useRef(null);
+
+  useIsomorphicLayoutEffect(() => {
+    return animateModalPopup(modalContainerRef.current, backdropRef.current);
+  }, []);
 
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentContent, setEditCommentContent] = useState('');
@@ -380,9 +390,10 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
+    <div ref={backdropRef} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
       <div 
-        className="w-full max-w-6xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-[#E8E4DD] animate-[slideIn_0.2s_ease-out] flex flex-col max-h-[92vh]"
+        ref={modalContainerRef}
+        className="w-full max-w-6xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-[#E8E4DD] flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -475,6 +486,24 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
               )}
             </span>
 
+            {/* Estimated Hours */}
+            <span>
+              Est:{' '}
+              {canEdit ? (
+                <input
+                  type="number"
+                  min="0.5"
+                  max="100"
+                  step="0.5"
+                  value={activeTask.estimatedHours || 2}
+                  onChange={(e) => updateTaskMutation.mutate({ estimatedHours: parseFloat(e.target.value) || 2 })}
+                  className="bg-transparent border-b border-[#E8E4DD] text-black font-mono font-bold outline-none cursor-pointer focus:border-black text-xs w-14"
+                />
+              ) : (
+                <strong className="text-black font-mono">{activeTask.estimatedHours || 2}h</strong>
+              )}
+            </span>
+
             <div className="relative" ref={labelDropdownRef}>
               <button 
                 onClick={() => setShowLabelDropdown(!showLabelDropdown)}
@@ -556,20 +585,44 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
         )}
 
         {/* Two-Panel Body: Details (Left) + Chat (Right) */}
-        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
+        <div data-lenis-prevent className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
           
           {/* LEFT PANEL — Task Details */}
-          <div className="w-full md:w-1/2 lg:w-3/5 min-w-0 overflow-y-auto p-4 sm:p-6 bg-[#F5F3EE] border-b md:border-b-0 md:border-r border-[#E8E4DD]">
+          <div data-lenis-prevent className="w-full md:w-1/2 lg:w-3/5 min-w-0 overflow-y-auto p-4 sm:p-6 bg-[#F5F3EE] border-b md:border-b-0 md:border-r border-[#E8E4DD]">
+            {activeTask.autoTriageReason && (
+              <div className="mb-6 bg-signal-red/5 border border-signal-red/20 p-4 rounded-2xl">
+                <h3 className="font-mono text-xs text-signal-red uppercase font-bold tracking-widest mb-1 flex items-center gap-1.5">
+                  <span>⚡</span> Auto-Pilot Triage Rationale
+                </h3>
+                <p className="font-sans text-xs text-black/80">{activeTask.autoTriageReason}</p>
+              </div>
+            )}
+
             {/* Description */}
             <div className="mb-6 bg-white p-5 rounded-2xl border border-[#E8E4DD] shadow-sm">
               <h3 className="font-mono text-xs text-black/40 uppercase tracking-widest mb-3">Description</h3>
               {task.description ? (
-                <div className="prose prose-sm max-w-none font-sans prose-headings:font-display prose-headings:italic">
-                  <ReactMarkdown>{task.description}</ReactMarkdown>
-                </div>
+                <>
+                  <div className="prose prose-sm max-w-none font-sans prose-headings:font-display prose-headings:italic">
+                    <ReactMarkdown>{task.description}</ReactMarkdown>
+                  </div>
+                  {extractYouTubeUrls(task.description).map((yt, idx) => (
+                    <YouTubeEmbedCard key={idx} video={yt} />
+                  ))}
+                </>
               ) : (
                 <p className="text-black/40 italic font-mono text-sm">No description provided.</p>
               )}
+            </div>
+
+            {/* File Attachments (Excel, CSV, PDF, Word, Audio, Images) */}
+            <div className="mb-6">
+              <FileAttachmentsSection 
+                taskId={task.id} 
+                projectId={projectId} 
+                attachments={activeTask.attachments || []} 
+                canEdit={canEdit} 
+              />
             </div>
 
             {/* Time Tracker */}
@@ -641,7 +694,7 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div data-lenis-prevent className="flex-1 overflow-y-auto p-6 space-y-5">
               {commentsLoading && (
                 <div className="text-center text-sm font-mono text-black/40 py-8">Loading thread...</div>
               )}
@@ -714,6 +767,9 @@ export default function TaskDetailsModal({ task, projectId, labels, onClose }) {
                         ) : (
                           <div className={`prose prose-sm max-w-none ${isOwn ? 'prose-invert' : ''}`}>
                             <ReactMarkdown>{comment.content}</ReactMarkdown>
+                            {extractYouTubeUrls(comment.content).map((yt, idx) => (
+                              <YouTubeEmbedCard key={idx} video={yt} />
+                            ))}
                           </div>
                         )}
 

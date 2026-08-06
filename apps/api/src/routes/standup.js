@@ -2,6 +2,8 @@ const express = require('express');
 const { AuditLog, Task } = require('../models');
 const authenticate = require('../middleware/authenticate');
 
+const { getStandupPrompt } = require('../config/prompts');
+
 const router = express.Router();
 router.use(authenticate);
 
@@ -130,35 +132,8 @@ router.post('/generate', async (req, res, next) => {
       return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
     }
 
-    const systemPrompt = `You are a daily standup report generator for a project management tool called TaskForge. 
-Given a developer's task data, generate a concise, professional daily standup report.
-
-Each task in the input data has an "id" and a "projectId". 
-When listing any task in the report under "What I completed", "What I'm working on today", or "Blockers & Risks", you MUST format the task title as a custom markdown link pointing to its task URL:
-[Task Title](task://{projectId}/{id})
-
-For example:
-- [[NEW] Read a concise tutorial...](task://6a159a97bb6684b44d0bb8f0/6a159a97bb6684b44d0bb8f1) (Project Name) [Status]
-
-The report MUST follow this exact markdown structure:
-
-## 🗓 Daily Standup — {date}
-**{userName}**
-
-### ✅ What I completed
-- List completed tasks with project names, formatting task titles as links. If none, say "No tasks completed in the last 24 hours."
-
-### 🔄 What I'm working on today
-- List the top priority open tasks (max 5), formatting task titles as links. Include status and project name.
-- Flag any overdue items with ⚠️
-
-### 🚧 Blockers & Risks
-- List any blocked tasks (formatting titles as links) and what they're waiting on. If none, say "No blockers at this time."
-
-### 📊 Quick Stats
-- X tasks completed | Y tasks in queue | Z blockers | W overdue
-
-Keep it concise and professional. Use bullet lists. Return ONLY the markdown report, nothing else.`;
+    const customUserPrompt = req.user.customModelSettings?.systemPrompt;
+    const systemPrompt = getStandupPrompt({ customUserPrompt });
 
     const userPrompt = `Generate my daily standup report from this data:\n\n${JSON.stringify(contextData, null, 2)}`;
 

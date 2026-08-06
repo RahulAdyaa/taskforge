@@ -20,6 +20,7 @@ import GlobalSocket from './components/GlobalSocket';
 import { ThemeProvider } from './store/themeStore';
 import { SocketProvider } from './context/SocketContext';
 import ChatWidget from './components/ChatWidget';
+import SmoothScrollProvider from './components/SmoothScrollProvider';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -57,7 +58,8 @@ function App() {
   return (
     <ThemeProvider>
       <SocketProvider>
-        <Router>
+        <SmoothScrollProvider>
+          <Router>
           <GlobalSocket />
           <CommandPalette />
           {isAuthenticated && <ChatWidget />}
@@ -78,6 +80,7 @@ function App() {
             <Route path="/profile/:username" element={<PublicProfile />} />
           </Routes>
         </Router>
+        </SmoothScrollProvider>
       </SocketProvider>
     </ThemeProvider>
   );

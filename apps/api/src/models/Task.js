@@ -53,11 +53,30 @@ const taskSchema = new mongoose.Schema(
         ref: 'Task',
       },
     ],
+    estimatedHours: {
+      type: Number,
+      default: 2,
+      min: 0.5,
+      max: 100,
+    },
+    autoTriageReason: {
+      type: String,
+      default: null,
+    },
     deadlineNotificationStatus: {
       type: String,
       enum: ['NONE', 'APPROACHING_SENT', 'OVERDUE_SENT'],
       default: 'NONE',
     },
+    attachments: [
+      {
+        filename: { type: String, required: true },
+        fileUrl: { type: String, required: true },
+        fileType: { type: String, required: true },
+        fileSize: { type: Number, default: 0 },
+        uploadedAt: { type: Date, default: Date.now }
+      }
+    ],
   },
   {
     timestamps: true, // createdAt + updatedAt

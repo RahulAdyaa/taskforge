@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Zap, Copy, Check, X, Sparkles, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
+import gsap from 'gsap';
 
 export default function StandupModal({ onClose }) {
   const [standupData, setStandupData] = useState(null);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (modalRef.current) {
+      gsap.fromTo(
+        modalRef.current,
+        { opacity: 0, scale: 0.88, y: 25 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.4)' }
+      );
+    }
+  }, []);
 
   const handleTaskLinkClick = (projectId, taskId) => {
     onClose();
@@ -127,7 +139,7 @@ export default function StandupModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideIn_0.3s_ease-out] max-h-[92vh] flex flex-col">
+      <div ref={modalRef} className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-[#111111] to-[#2a2a2a] p-6 flex items-center justify-between">
@@ -146,7 +158,7 @@ export default function StandupModal({ onClose }) {
         </div>
 
         {/* Content */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+        <div data-lenis-prevent className="p-6 max-h-[60vh] overflow-y-auto">
           {!standupData && !generateMutation.isPending && (
             <div className="text-center py-12">
               <div className="w-20 h-20 rounded-2xl bg-[#F5F3EE] flex items-center justify-center mx-auto mb-6">

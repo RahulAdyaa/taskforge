@@ -5,6 +5,8 @@ const authenticate = require('../middleware/authenticate');
 const requireProjectRole = require('../middleware/requireProjectRole');
 const validate = require('../middleware/validate');
 
+const { getDagDecompositionPrompt } = require('../config/prompts');
+
 const router = express.Router({ mergeParams: true });
 router.use(authenticate);
 router.use(requireProjectRole(['ADMIN', 'MEMBER']));
@@ -25,7 +27,7 @@ router.get('/', async (req, res, next) => {
     const tasks = await Task.find(filter)
       .populate('assigneeId', 'name email')
       .populate('creatorId', 'name email')
-      .populate('blockedBy', 'status')
+      .populate('blockedBy', 'title status assigneeId')
       .populate('labels')
       .lean();
 
@@ -42,10 +44,13 @@ router.get('/', async (req, res, next) => {
         assigneeId: t.assigneeId?._id?.toString() || t.assigneeId?.toString() || null,
         creatorId: t.creatorId?._id?.toString() || t.creatorId?.toString(),
         deadlineNotificationStatus: t.deadlineNotificationStatus,
+        estimatedHours: t.estimatedHours || 2,
+        autoTriageReason: t.autoTriageReason || null,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
         labels: (t.labels || []).map(l => ({ id: l._id?.toString() || l.id, name: l.name, color: l.color, projectId: l.projectId?.toString() })),
-        blockedBy: (t.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, status: b.status }))
+        blockedBy: (t.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title || 'Untitled Task', status: b.status, assigneeId: b.assigneeId?.toString() || null })),
+        attachments: (t.attachments || []).map(a => ({ id: a._id?.toString() || a.id, filename: a.filename, fileUrl: a.fileUrl, fileType: a.fileType, fileSize: a.fileSize, uploadedAt: a.uploadedAt }))
       };
       obj.assignee = t.assigneeId && typeof t.assigneeId === 'object' && t.assigneeId.name
         ? { id: t.assigneeId._id?.toString() || t.assigneeId.id, name: t.assigneeId.name, email: t.assigneeId.email } : null;
@@ -64,6 +69,8 @@ const createTaskSchema = z.object({
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
   assigneeId: z.string().optional().nullable(),
   labelIds: z.array(z.string()).optional(),
+  estimatedHours: z.number().min(0.5).max(100).optional(),
+  blockedByIds: z.array(z.string()).optional(),
 });
 
 const aiGenerateSchema = z.object({
@@ -73,6 +80,9 @@ const aiGenerateSchema = z.object({
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
     assigneeId: z.string().optional().nullable(),
     dueDate: z.coerce.date().optional().nullable(),
+    estimatedHours: z.number().optional(),
+    dependsOnIndices: z.array(z.number()).optional(),
+    blockedByIds: z.array(z.string()).optional(),
   })).optional(),
 });
 
@@ -127,31 +137,28 @@ const generateSubtasksWithAI = async (prompt) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
 
-  const systemPrompt = `You are a project management AI. Given a user's objective, break it down into actionable subtasks. Use your judgment to decide how many subtasks are necessary to fully cover the objective (typically between 3 to 15 subtasks depending on the complexity of the objective).
-
-Rules:
-- Each task must be specific, actionable, and clear
-- Assign priority: URGENT, HIGH, MEDIUM, or LOW
-- Return ONLY valid JSON array, no markdown, no explanation
-- Format: [{"title": "task description", "priority": "HIGH"}, ...]
-
-Example input: "Build a user authentication system"
-Example output: [{"title":"Design database schema for users table with email, password hash, and roles","priority":"HIGH"},{"title":"Implement bcrypt password hashing and JWT token generation","priority":"URGENT"},{"title":"Create REST API endpoints for signup, login, and logout","priority":"HIGH"},{"title":"Build React login and signup forms with client-side validation","priority":"MEDIUM"},{"title":"Add forgot password flow with email verification","priority":"LOW"}]`;
+  const systemPrompt = getDagDecompositionPrompt();
 
   let lastError;
   for (const model of OPENROUTER_MODELS) {
     try {
-      console.log(`Trying OpenRouter model: ${model}`);
+      console.log(`Trying OpenRouter model for DAG breakdown: ${model}`);
       const data = await callOpenRouterAPI(apiKey, model, systemPrompt, prompt);
       const text = data.choices?.[0]?.message?.content || '';
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) { lastError = new Error('Could not parse AI response'); continue; }
       const tasks = JSON.parse(jsonMatch[0]);
       const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-      console.log(`AI generation succeeded with model: ${model}`);
+      console.log(`AI DAG generation succeeded with model: ${model}`);
       return tasks
         .filter(t => t.title && typeof t.title === 'string')
-        .map(t => ({ title: t.title.substring(0, 120), priority: validPriorities.includes(t.priority) ? t.priority : 'MEDIUM' }))
+        .map((t, idx) => ({
+          _id: idx,
+          title: t.title.substring(0, 120),
+          priority: validPriorities.includes(t.priority) ? t.priority : 'MEDIUM',
+          estimatedHours: typeof t.estimatedHours === 'number' && t.estimatedHours > 0 ? t.estimatedHours : 2,
+          dependsOnIndices: Array.isArray(t.dependsOnIndices) ? t.dependsOnIndices.filter(i => typeof i === 'number' && i < idx) : [],
+        }))
         .slice(0, 20);
     } catch (err) {
       console.error(`Model ${model} failed:`, err.message);
@@ -322,43 +329,76 @@ router.post('/ai-generate', requireProjectRole(['ADMIN']), validate(aiGenerateSc
     let tasksToCreate = taskOverrides?.length > 0 ? taskOverrides : await generateSubtasksWithAI(prompt);
 
     const createdTasks = [];
+    const createdDocIds = [];
+
+    // Step 1: Create initial Task documents
     for (const taskData of tasksToCreate) {
       const task = await Task.create({
         title: taskData.title,
-        description: `AI-generated for: "${prompt}"`,
+        description: `AI Auto-Pilot generated for: "${prompt}"`,
         priority: taskData.priority || 'MEDIUM',
         status: 'TODO',
         projectId,
         creatorId: req.user.id,
         assigneeId: taskData.assigneeId || null,
         dueDate: taskData.dueDate ? new Date(taskData.dueDate) : null,
+        estimatedHours: taskData.estimatedHours || 2,
       });
-      const populated = await Task.findById(task.id).populate('assigneeId', 'name email');
+      createdTasks.push({ doc: task, taskData });
+      createdDocIds.push(task._id);
+    }
+
+    // Step 2: Link DAG dependencies
+    const resultTasks = [];
+    for (let i = 0; i < createdTasks.length; i++) {
+      const { doc, taskData } = createdTasks[i];
+      let blockedByDocIds = [];
+
+      if (Array.isArray(taskData.dependsOnIndices)) {
+        blockedByDocIds = taskData.dependsOnIndices
+          .filter(idx => idx >= 0 && idx < createdDocIds.length && idx !== i)
+          .map(idx => createdDocIds[idx]);
+      } else if (Array.isArray(taskData.blockedByIds)) {
+        blockedByDocIds = taskData.blockedByIds;
+      }
+
+      if (blockedByDocIds.length > 0) {
+        doc.blockedBy = blockedByDocIds;
+        await doc.save();
+      }
+
+      const populated = await Task.findById(doc.id)
+        .populate('assigneeId', 'name email')
+        .populate('blockedBy', 'title status assigneeId');
       const obj = populated.toJSON();
       obj.assignee = populated.assigneeId && typeof populated.assigneeId === 'object' && populated.assigneeId.name
         ? { id: populated.assigneeId._id?.toString() || populated.assigneeId.id, name: populated.assigneeId.name, email: populated.assigneeId.email } : null;
       obj.assigneeId = populated.assigneeId?._id?.toString() || populated.assigneeId?.toString() || null;
-      createdTasks.push(obj);
+      obj.blockedBy = (populated.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title, status: b.status, assigneeId: b.assigneeId?.toString() || null }));
+      obj.estimatedHours = populated.estimatedHours || 2;
+
+      resultTasks.push(obj);
 
       req.emitEvent(`project_${projectId}`, 'task_created', obj);
 
       await AuditLog.create({
         action: 'TASK_CREATED_BY_AI',
-        details: JSON.stringify({ title: task.title }),
-        projectId, userId: req.user.id, taskId: task.id,
+        details: JSON.stringify({ title: doc.title, estimatedHours: doc.estimatedHours }),
+        projectId, userId: req.user.id, taskId: doc.id,
       });
 
       if (taskData.assigneeId && taskData.assigneeId !== req.user.id) {
         try {
           const notification = await Notification.create({
             userId: taskData.assigneeId, type: 'TASK_ASSIGNED',
-            message: `AI assigned you to "${task.title}"`, link: `/app/projects/${projectId}?task=${task.id}`,
+            message: `AI assigned you to "${doc.title}"`, link: `/app/projects/${projectId}?task=${doc.id}`,
           });
           req.emitEvent(`user_${taskData.assigneeId}`, 'new_notification', notification);
         } catch (e) { console.error('Failed to send AI assignment notification:', e); }
       }
     }
-    res.status(201).json({ message: 'Tasks generated successfully', tasks: createdTasks });
+
+    res.status(201).json({ message: 'Tasks generated successfully', tasks: resultTasks });
   } catch (error) { next(error); }
 });
 
@@ -406,13 +446,43 @@ router.post('/', requireProjectRole(['ADMIN', 'MEMBER']), validate(createTaskSch
   } catch (error) { next(error); }
 });
 
+const detectDAGCycle = async (taskId, newBlockedByIds) => {
+  if (!newBlockedByIds || newBlockedByIds.length === 0) return false;
+  const taskIdStr = taskId.toString();
+  
+  if (newBlockedByIds.some(id => id.toString() === taskIdStr)) {
+    return true;
+  }
+  
+  const queue = [...newBlockedByIds.map(id => id.toString())];
+  const visited = new Set(queue);
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    if (currentId === taskIdStr) return true;
+
+    const currentTask = await Task.findById(currentId).select('blockedBy').lean();
+    if (currentTask && currentTask.blockedBy && currentTask.blockedBy.length > 0) {
+      for (const nextId of currentTask.blockedBy) {
+        const nextIdStr = nextId.toString();
+        if (nextIdStr === taskIdStr) return true;
+        if (!visited.has(nextIdStr)) {
+          visited.add(nextIdStr);
+          queue.push(nextIdStr);
+        }
+      }
+    }
+  }
+  return false;
+};
+
 // GET single task
 router.get('/:taskId', async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.taskId)
       .populate('assigneeId', 'name email')
       .populate('creatorId', 'name email')
-      .populate('blockedBy', 'title status')
+      .populate('blockedBy', 'title status assigneeId')
       .populate('labels')
       .lean();
     if (!task || task.projectId.toString() !== req.params.projectId) {
@@ -433,10 +503,13 @@ router.get('/:taskId', async (req, res, next) => {
       projectId: task.projectId?.toString(),
       assigneeId: task.assigneeId?._id?.toString() || task.assigneeId?.toString() || null,
       creatorId: task.creatorId?._id?.toString() || task.creatorId?.toString(),
+      estimatedHours: task.estimatedHours || 2,
+      autoTriageReason: task.autoTriageReason || null,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
       labels: (task.labels || []).map(l => ({ id: l._id?.toString() || l.id, name: l.name, color: l.color, projectId: l.projectId?.toString() })),
-      blockedBy: (task.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title, status: b.status }))
+      blockedBy: (task.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title || 'Untitled Task', status: b.status, assigneeId: b.assigneeId?.toString() || null })),
+      attachments: (task.attachments || []).map(a => ({ id: a._id?.toString() || a.id, filename: a.filename, fileUrl: a.fileUrl, fileType: a.fileType, fileSize: a.fileSize, uploadedAt: a.uploadedAt }))
     };
     obj.assignee = task.assigneeId && typeof task.assigneeId === 'object' && task.assigneeId.name
       ? { id: task.assigneeId._id?.toString() || task.assigneeId.id, name: task.assigneeId.name, email: task.assigneeId.email } : null;
@@ -455,6 +528,9 @@ const updateTaskSchema = z.object({
   status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']).optional(),
   assigneeId: z.string().optional().nullable(),
   labelIds: z.array(z.string()).optional(),
+  estimatedHours: z.number().min(0.5).max(100).optional(),
+  blockedByIds: z.array(z.string()).optional(),
+  autoTriageReason: z.string().optional().nullable(),
 });
 
 router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
@@ -466,11 +542,19 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
     const isMember = req.projectMembership.role === 'ADMIN' || req.projectMembership.role === 'MEMBER';
     if (!isMember) return res.status(403).json({ error: 'Forbidden' });
 
-    const { labelIds, ...rest } = req.body;
+    const { labelIds, blockedByIds, ...rest } = req.body;
     let updateData = rest;
     if (labelIds !== undefined) updateData.labels = labelIds;
     if (req.body.dueDate !== undefined) {
       updateData.deadlineNotificationStatus = 'NONE';
+    }
+
+    if (blockedByIds !== undefined) {
+      const hasCycle = await detectDAGCycle(req.params.taskId, blockedByIds);
+      if (hasCycle) {
+        return res.status(400).json({ error: 'Cannot set dependency: Circular DAG dependency detected' });
+      }
+      updateData.blockedBy = blockedByIds;
     }
 
     if (updateData.title) {
@@ -486,21 +570,28 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
       updateData.title = trimmedTitle;
     }
 
-    // Check dependency blockers
-    if (updateData.status === 'DONE') {
-      const taskWithBlockers = await Task.findById(req.params.taskId).populate('blockedBy');
-      const incomplete = taskWithBlockers.blockedBy.filter(t => t.status !== 'DONE');
+    // Check dependency blockers on IN_PROGRESS or DONE
+    if (updateData.status === 'IN_PROGRESS' || updateData.status === 'DONE') {
+      const taskWithBlockers = await Task.findById(req.params.taskId).populate('blockedBy', 'title status');
+      const incomplete = (taskWithBlockers.blockedBy || []).filter(t => t.status !== 'DONE');
       if (incomplete.length > 0) {
-        return res.status(400).json({ error: 'Cannot complete task. It is blocked by incomplete dependencies.', incompleteBlockers: incomplete });
+        return res.status(400).json({
+          error: `Cannot transition task. It is blocked by ${incomplete.length} incomplete dependency task(s).`,
+          incompleteBlockers: incomplete.map(t => ({ id: t._id?.toString() || t.id, title: t.title, status: t.status })),
+        });
       }
     }
 
     const updatedTask = await Task.findByIdAndUpdate(req.params.taskId, updateData, { new: true })
-      .populate('assigneeId', 'name email').populate('labels');
+      .populate('assigneeId', 'name email').populate('labels').populate('blockedBy', 'title status assigneeId');
     const obj = updatedTask.toJSON();
     obj.assignee = updatedTask.assigneeId && typeof updatedTask.assigneeId === 'object' && updatedTask.assigneeId.name
       ? { id: updatedTask.assigneeId._id?.toString() || updatedTask.assigneeId.id, name: updatedTask.assigneeId.name, email: updatedTask.assigneeId.email } : null;
     obj.assigneeId = updatedTask.assigneeId?._id?.toString() || updatedTask.assigneeId?.toString() || null;
+    obj.blockedBy = (updatedTask.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title || 'Untitled Task', status: b.status, assigneeId: b.assigneeId?.toString() || null }));
+    obj.estimatedHours = updatedTask.estimatedHours || 2;
+    obj.autoTriageReason = updatedTask.autoTriageReason || null;
+    obj.attachments = (updatedTask.attachments || []).map(a => ({ id: a._id?.toString() || a.id, filename: a.filename, fileUrl: a.fileUrl, fileType: a.fileType, fileSize: a.fileSize, uploadedAt: a.uploadedAt }));
 
     req.emitEvent(`project_${req.params.projectId}`, 'task_updated', obj);
 
@@ -512,13 +603,15 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
       });
       req.emitEvent(`user_${updatedTask.creatorId}`, 'notification', notification);
     }
-    // Notify assignee if reassigned
-    if (updatedTask.assigneeId && updatedTask.assigneeId.toString() !== task.assigneeId?.toString() && updatedTask.assigneeId.toString() !== req.user.id) {
+    // Notify assignee ONLY if actually reassigned to a new user
+    const newAssigneeIdStr = updatedTask.assigneeId?._id?.toString() || updatedTask.assigneeId?.toString() || null;
+    const oldAssigneeIdStr = task.assigneeId?._id?.toString() || task.assigneeId?.toString() || null;
+    if (newAssigneeIdStr && newAssigneeIdStr !== oldAssigneeIdStr && newAssigneeIdStr !== req.user.id) {
       const notification = await Notification.create({
-        userId: updatedTask.assigneeId, type: 'TASK_ASSIGNED',
+        userId: newAssigneeIdStr, type: 'TASK_ASSIGNED',
         message: `You were assigned a task: ${updatedTask.title}`, link: `/app/projects/${req.params.projectId}?task=${updatedTask.id}`,
       });
-      req.emitEvent(`user_${updatedTask.assigneeId}`, 'notification', notification);
+      req.emitEvent(`user_${newAssigneeIdStr}`, 'notification', notification);
     }
 
     await AuditLog.create({
@@ -526,6 +619,88 @@ router.patch('/:taskId', validate(updateTaskSchema), async (req, res, next) => {
       projectId: req.params.projectId, userId: req.user.id, taskId: task.id,
     });
     res.json(obj);
+  } catch (error) { next(error); }
+});
+
+// POST Auto-Pilot Workload Triage
+router.post('/auto-triage', requireProjectRole(['ADMIN']), async (req, res, next) => {
+  try {
+    const projectId = req.params.projectId;
+    const projectTasks = await Task.find({ projectId }).populate('blockedBy', 'status').lean();
+    const { ProjectMember } = require('../models');
+    const members = await ProjectMember.find({ projectId }).populate('userId', 'name email').lean();
+
+    if (members.length === 0) {
+      return res.status(400).json({ error: 'No team members available for triage' });
+    }
+
+    const memberWorkloads = new Map();
+    members.forEach(m => {
+      if (m.userId) {
+        memberWorkloads.set(m.userId._id.toString(), {
+          user: m.userId,
+          activeHours: 0,
+          assignedCount: 0,
+        });
+      }
+    });
+
+    if (memberWorkloads.size === 0) {
+      return res.status(400).json({ error: 'No valid user profiles found for triage' });
+    }
+
+    projectTasks.forEach(t => {
+      if (t.assigneeId && t.status !== 'DONE') {
+        const uId = t.assigneeId.toString();
+        if (memberWorkloads.has(uId)) {
+          const entry = memberWorkloads.get(uId);
+          entry.activeHours += t.estimatedHours || 2;
+          entry.assignedCount += 1;
+        }
+      }
+    });
+
+    const triagedTasks = [];
+    const unassignedTasks = projectTasks.filter(t => t.status === 'TODO');
+
+    for (const t of unassignedTasks) {
+      let bestMember = null;
+      let minHours = Infinity;
+
+      for (const [uId, data] of memberWorkloads.entries()) {
+        if (data.activeHours < minHours) {
+          minHours = data.activeHours;
+          bestMember = data;
+        }
+      }
+
+      if (bestMember) {
+        const isBlocked = (t.blockedBy || []).some(b => b.status !== 'DONE');
+        const reason = `Auto-Pilot: Assigned to ${bestMember.user.name} (Lowest current workload: ${bestMember.activeHours}h)${isBlocked ? ' - Waiting on dependencies' : ''}`;
+
+        const updated = await Task.findByIdAndUpdate(
+          t._id,
+          { assigneeId: bestMember.user._id, autoTriageReason: reason },
+          { new: true }
+        ).populate('assigneeId', 'name email').populate('blockedBy', 'title status assigneeId');
+
+        bestMember.activeHours += updated.estimatedHours || 2;
+        bestMember.assignedCount += 1;
+
+        const obj = updated.toJSON();
+        obj.assignee = updated.assigneeId && typeof updated.assigneeId === 'object' && updated.assigneeId.name
+          ? { id: updated.assigneeId._id?.toString() || updated.assigneeId.id, name: updated.assigneeId.name, email: updated.assigneeId.email } : null;
+        obj.assigneeId = updated.assigneeId?._id?.toString() || updated.assigneeId?.toString() || null;
+        obj.blockedBy = (updated.blockedBy || []).map(b => ({ id: b._id?.toString() || b.id, title: b.title, status: b.status }));
+        obj.estimatedHours = updated.estimatedHours || 2;
+        obj.autoTriageReason = updated.autoTriageReason;
+
+        triagedTasks.push(obj);
+        req.emitEvent(`project_${projectId}`, 'task_updated', obj);
+      }
+    }
+
+    res.json({ message: `Auto-Pilot triaged ${triagedTasks.length} tasks successfully`, triagedTasks });
   } catch (error) { next(error); }
 });
 
@@ -690,8 +865,119 @@ router.delete('/:taskId/comments/:commentId', async (req, res, next) => {
       userId: req.user.id,
       taskId,
     });
-
     res.status(204).send();
+  } catch (error) { next(error); }
+});
+
+// POST upload attachment (accepts base64 payload)
+router.post('/:taskId/attachments', async (req, res, next) => {
+  try {
+    const { taskId, projectId } = req.params;
+    const { filename, fileData, fileType } = req.body;
+
+    if (!filename || !fileData) {
+      return res.status(400).json({ error: 'Filename and base64 fileData are required' });
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task || task.projectId.toString() !== projectId) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Clean base64 header if present (e.g. data:image/png;base64,...)
+    const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    const safeExt = path.extname(filename) || '';
+    const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}${safeExt}`;
+    const uploadsDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadsDir, uniqueName);
+    fs.writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/${uniqueName}`;
+    const newAttachment = {
+      filename,
+      fileUrl,
+      fileType: fileType || 'application/octet-stream',
+      fileSize: buffer.length,
+      uploadedAt: new Date()
+    };
+
+    task.attachments = task.attachments || [];
+    task.attachments.push(newAttachment);
+    await task.save();
+
+    const populated = await Task.findById(taskId)
+      .populate('assigneeId', 'name email')
+      .populate('creatorId', 'name email')
+      .populate('blockedBy', 'title status assigneeId')
+      .populate('labels')
+      .lean();
+
+    const obj = {
+      ...populated,
+      id: populated._id.toString(),
+      attachments: (populated.attachments || []).map(a => ({
+        id: a._id.toString(),
+        filename: a.filename,
+        fileUrl: a.fileUrl,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+        uploadedAt: a.uploadedAt
+      }))
+    };
+
+    req.emitEvent(`project_${projectId}`, 'task_updated', obj);
+
+    await AuditLog.create({
+      action: 'ATTACHMENT_ADDED',
+      details: JSON.stringify({ filename, fileSize: buffer.length }),
+      projectId, userId: req.user.id, taskId,
+    });
+
+    res.status(201).json(obj);
+  } catch (error) { next(error); }
+});
+
+// DELETE attachment
+router.delete('/:taskId/attachments/:attachmentId', async (req, res, next) => {
+  try {
+    const { taskId, projectId, attachmentId } = req.params;
+    const task = await Task.findById(taskId);
+    if (!task || task.projectId.toString() !== projectId) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    task.attachments = (task.attachments || []).filter(a => a._id.toString() !== attachmentId);
+    await task.save();
+
+    const populated = await Task.findById(taskId)
+      .populate('assigneeId', 'name email')
+      .populate('creatorId', 'name email')
+      .populate('blockedBy', 'title status assigneeId')
+      .populate('labels')
+      .lean();
+
+    const obj = {
+      ...populated,
+      id: populated._id.toString(),
+      attachments: (populated.attachments || []).map(a => ({
+        id: a._id.toString(),
+        filename: a.filename,
+        fileUrl: a.fileUrl,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+        uploadedAt: a.uploadedAt
+      }))
+    };
+
+    req.emitEvent(`project_${projectId}`, 'task_updated', obj);
+
+    res.json(obj);
   } catch (error) { next(error); }
 });
 
@@ -700,3 +986,4 @@ const timeEntriesRoutes = require('./time-entries');
 router.use('/:taskId/time-entries', timeEntriesRoutes);
 
 module.exports = router;
+

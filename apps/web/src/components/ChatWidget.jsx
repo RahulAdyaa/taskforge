@@ -66,9 +66,28 @@ export default function ChatWidget() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!input.trim() || chatMutation.isPending) return;
+    const trimmed = input.trim();
+    if (!trimmed || chatMutation.isPending) return;
 
-    const userMessage = input.trim();
+    const command = trimmed.toLowerCase();
+    if (command === 'clear' || command === 'cls' || command === 'clr') {
+      const resetMsg = [
+        {
+          role: 'assistant',
+          content: '✨ Chat cleared! How can I assist you with your projects, tasks, or settings?'
+        }
+      ];
+      setMessages(resetMsg);
+      try {
+        sessionStorage.removeItem('tf_chat_history');
+      } catch (err) {
+        console.error('Failed to clear sessionStorage chat history', err);
+      }
+      setInput('');
+      return;
+    }
+
+    const userMessage = trimmed;
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setInput('');
     chatMutation.mutate(userMessage);

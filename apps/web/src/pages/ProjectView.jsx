@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy, GitMerge } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import KanbanBoard from '../components/KanbanBoard';
+import DependencyGraphView from '../components/DependencyGraphView';
 import { useAuthStore } from '../store/authStore';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, CartesianGrid } from 'recharts';
 import NotificationBell from '../components/NotificationBell';
@@ -13,6 +14,8 @@ import ThemeToggle from '../components/ThemeToggle';
 import StandupModal from '../components/StandupModal';
 import VoiceAgentController from '../components/VoiceAgentController';
 import { useSocket } from '../context/SocketContext';
+import gsap, { useIsomorphicLayoutEffect } from '../lib/gsap';
+import AskProjectAIDrawer from '../components/AskProjectAIDrawer';
 
 const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
 
@@ -26,6 +29,17 @@ export default function ProjectView() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [showStandup, setShowStandup] = useState(false);
   const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
+  const mainContentRef = useRef(null);
+
+  useIsomorphicLayoutEffect(() => {
+    if (mainContentRef.current) {
+      gsap.fromTo(
+        mainContentRef.current,
+        { opacity: 0, y: 15, scale: 0.99 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: 'power3.out' }
+      );
+    }
+  }, [activeTab]);
   
   const { socket, isConnected, onlineUsers } = useSocket();
 
@@ -219,10 +233,6 @@ export default function ProjectView() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <ThemeToggle />
-            <NotificationBell />
-          </div>
         </div>
         
         {/* Row 2: Nav Tabs & Primary Actions (Mobile-Optimized) */}
@@ -260,6 +270,12 @@ export default function ProjectView() {
               className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all ${activeTab === 'kanban' ? 'bg-white dark:bg-[#2A2A2A] text-black dark:text-white shadow-sm' : 'text-black/60 dark:text-white/60 hover:text-black'}`}
             >
               Board
+            </button>
+            <button 
+              onClick={() => setActiveTab('dag')}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === 'dag' ? 'bg-white dark:bg-[#2A2A2A] text-black dark:text-white shadow-sm' : 'text-black/60 dark:text-white/60 hover:text-black'}`}
+            >
+              <GitMerge className="w-3.5 h-3.5 text-signal-red" /> DAG Graph
             </button>
             {isAdmin && (
               <>
@@ -318,12 +334,18 @@ export default function ProjectView() {
               </button>
             </div>
           )}
+
+          {/* Theme & Notifications on Far Right */}
+          <div className="flex items-center gap-1.5 ml-2 border-l border-[#E8E4DD] dark:border-white/10 pl-2">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
         </div>
       </header>
 
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative flex flex-col">
+      <main ref={mainContentRef} className="flex-1 overflow-hidden relative flex flex-col">
         {activeTab === 'kanban' && (
           <>
             <TaskFilters
@@ -336,6 +358,14 @@ export default function ProjectView() {
               <KanbanBoard projectId={id} tasks={applyFilters(tasks, filters)} isAdmin={isAdmin} members={project?.members || []} labels={labels || []} isLoading={isTasksLoading} />
             </div>
           </>
+        )}
+        {activeTab === 'dag' && (
+          <DependencyGraphView 
+            projectId={id} 
+            tasks={applyFilters(tasks, filters)} 
+            isAdmin={isAdmin} 
+            members={project?.members || []} 
+          />
         )}
         {activeTab === 'terminal' && isAdmin && (
           <div className="h-full bg-[#F5F3EE] dark:bg-[#111111] text-black/80 dark:text-[#E8E4DD] p-8 overflow-y-auto font-mono text-sm shadow-inner relative">
@@ -775,6 +805,8 @@ function AITaskModal({ projectId, members, labels, onClose }) {
         priority: t.priority,
         assigneeId: t.assigneeId || null,
         dueDate: t.dueDate || null,
+        estimatedHours: typeof t.estimatedHours === 'number' ? t.estimatedHours : 2,
+        dependsOnIndices: t.dependsOnIndices || [],
       }));
     
     if (enabledTasks.length === 0) {
@@ -959,6 +991,20 @@ function AITaskModal({ projectId, members, labels, onClose }) {
                           className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E] min-w-[220px] w-56"
                         />
                       </div>
+
+                      {/* Est Hours */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[9px] text-[#E8E4DD]/30 uppercase tracking-widest">Est</span>
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="100"
+                          step="0.5"
+                          value={task.estimatedHours || 2}
+                          onChange={(e) => updateTask(task._id, 'estimatedHours', parseFloat(e.target.value) || 2)}
+                          className="bg-black border border-[#E8E4DD]/20 text-[#E8E4DD] text-xs px-2 py-1.5 rounded-lg outline-none focus:border-[#E63B2E] w-16 font-mono"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1121,6 +1167,13 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
           </div>
         </form>
       </div>
+
+      {/* Ask Project AI Slide-Over Co-Pilot Drawer */}
+      <AskProjectAIDrawer 
+        projectId={id} 
+        projectName={project?.name} 
+        tasks={tasks || []} 
+      />
     </div>
   );
 }

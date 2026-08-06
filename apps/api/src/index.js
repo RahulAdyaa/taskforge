@@ -49,7 +49,19 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+const path = require('path');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+app.use('/uploads', express.static(uploadsDir));
+
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({
