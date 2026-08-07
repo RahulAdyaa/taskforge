@@ -98,6 +98,12 @@ export default function ChatWidget() {
     return null;
   }
 
+  // Inside project views (/app/projects/:id), AskProjectAIDrawer provides full project RAG intelligence.
+  // Suppress global ChatWidget trigger in project views to eliminate button overlap.
+  if (projectId) {
+    return null;
+  }
+
   if (!isOpen) {
     return (
       <button
