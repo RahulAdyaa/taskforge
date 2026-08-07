@@ -58,16 +58,38 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const compression = require('compression');
+
+// Compression — Gzip/Brotli payload compression for 1M+ client bandwidth optimization
+app.use(compression());
+
 app.use('/uploads', express.static(uploadsDir));
 
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
 
+// Rate limiters for DDoS protection & high-concurrency event loop protection
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: { error: 'Too many API requests from this IP, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
-  message: 'Too many requests from this IP, please try again after 15 minutes',
+  message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: 'AI rate limit exceeded for this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -117,12 +139,13 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // Guard all API routes: return 503 while DB is reconnecting
 app.use('/api', requireDB);
+app.use('/api', apiLimiter);
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/my-tasks', myTasksRoutes);
 app.use('/api/notifications', notificationsRoutes);
-app.use('/api/standup', standupRoutes);
+app.use('/api/standup', aiLimiter, standupRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/cron', cronRoutes);
 

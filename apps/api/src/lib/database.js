@@ -40,13 +40,13 @@ const connectDB = async (attempt = 1) => {
 
   try {
     await mongoose.connect(uri, {
-      // Connection pool settings — keep it lean to avoid idle-socket churn
-      maxPoolSize: process.env.VERCEL ? 3 : 5,
-      minPoolSize: 0,
+      // High-concurrency connection pool settings for 1M+ client scalability
+      maxPoolSize: process.env.VERCEL ? 10 : 100,
+      minPoolSize: process.env.VERCEL ? 2 : 10,
       maxIdleTimeMS: 30000,
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      heartbeatFrequencyMS: 30000,
+      heartbeatFrequencyMS: 10000,
       family: 4,
     });
 

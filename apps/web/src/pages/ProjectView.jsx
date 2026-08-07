@@ -722,6 +722,22 @@ function AITaskModal({ projectId, members, labels, onClose }) {
   const [step, setStep] = useState('input'); // 'input' | 'review'
   const [generatedTasks, setGeneratedTasks] = useState([]);
 
+  const backdropRef = useRef(null);
+  const cardRef = useRef(null);
+
+  useIsomorphicLayoutEffect(() => {
+    if (backdropRef.current) {
+      gsap.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.25 });
+    }
+    if (cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { scale: 0.88, opacity: 0, y: 20 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.35, ease: 'back.out(1.5)' }
+      );
+    }
+  }, []);
+
   // Step 1: Preview — get AI suggestions without creating
   const previewMutation = useMutation({
     mutationFn: async (data) => {
@@ -843,14 +859,19 @@ function AITaskModal({ projectId, members, labels, onClose }) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
+      ref={backdropRef}
+      className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className={`bg-[#111111] text-[#E8E4DD] rounded-2xl sm:rounded-3xl shadow-2xl border border-[#E63B2E]/20 animate-[slideIn_0.3s_ease-out] overflow-y-auto flex flex-col max-h-[90vh] ${step === 'review' ? 'w-full max-w-4xl' : 'w-full max-w-xl'}`}>
+      <div 
+        ref={cardRef}
+        data-lenis-prevent
+        className={`bg-[#111111] text-[#E8E4DD] rounded-2xl sm:rounded-3xl shadow-2xl border border-[#E63B2E]/20 overflow-y-auto flex flex-col max-h-[90vh] ${step === 'review' ? 'w-full max-w-4xl' : 'w-full max-w-xl'}`}
+      >
         
         {/* Header */}
         <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[#E8E4DD]/10 shrink-0 flex justify-between items-center bg-[#111111] sticky top-0 z-20">
@@ -1068,6 +1089,22 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
   const [assigneeId, setAssigneeId] = useState('');
   const [selectedLabels, setSelectedLabels] = useState([]);
 
+  const backdropRef = useRef(null);
+  const cardRef = useRef(null);
+
+  useIsomorphicLayoutEffect(() => {
+    if (backdropRef.current) {
+      gsap.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.25 });
+    }
+    if (cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { x: '100%', opacity: 0.8 },
+        { x: '0%', opacity: 1, duration: 0.4, ease: 'power3.out' }
+      );
+    }
+  }, []);
+
   const createMutation = useMutation({
     mutationFn: async (data) => {
       await api.post(`/projects/${projectId}/tasks`, data);
@@ -1096,14 +1133,19 @@ function CreateTaskModal({ projectId, members, labels, onClose }) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-end"
+      ref={backdropRef}
+      className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex justify-end transition-opacity"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-md bg-white dark:bg-[#121215] h-full border-l border-[#E8E4DD] dark:border-white/10 shadow-2xl p-4 sm:p-8 flex flex-col overflow-y-auto animate-[slideIn_0.3s_ease-out]">
+      <div 
+        ref={cardRef}
+        data-lenis-prevent
+        className="w-full max-w-md bg-white dark:bg-[#121215] h-full border-l border-[#E8E4DD] dark:border-white/10 shadow-2xl p-4 sm:p-8 flex flex-col overflow-y-auto"
+      >
         <div className="flex justify-between items-center mb-6 shrink-0">
           <h2 className="font-display font-extrabold text-2xl sm:text-3xl tracking-tight text-black dark:text-white">New Protocol</h2>
           <button onClick={onClose} className="p-2 text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white rounded-lg transition-colors">✕</button>

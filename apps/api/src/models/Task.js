@@ -107,9 +107,10 @@ const taskSchema = new mongoose.Schema(
   }
 );
 
-// Index for common queries
-taskSchema.index({ projectId: 1, status: 1 });
-taskSchema.index({ assigneeId: 1 });
+// High scale compound indexes for sub-millisecond query execution
+taskSchema.index({ projectId: 1, status: 1, priority: -1 });
+taskSchema.index({ assigneeId: 1, status: 1, dueDate: 1 });
+taskSchema.index({ projectId: 1, createdAt: -1 });
 taskSchema.index({ creatorId: 1 });
 taskSchema.index({ dueDate: 1, status: 1, deadlineNotificationStatus: 1 });
 
