@@ -4,16 +4,30 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
-import { useTheme } from '../store/themeStore';
+
+const formatGoogleError = (err) => {
+  if (!err) return 'Authentication canceled';
+  if (typeof err === 'string') return err;
+  if (err.response?.data?.error) return err.response.data.error;
+  if (err.error_description) return err.error_description;
+  if (err.error && typeof err.error === 'string') {
+    if (err.error === 'popup_closed_by_user') return 'Sign-in window closed before completion.';
+    if (err.error === 'access_denied') return 'Permission denied by user.';
+    if (err.error === 'idpiframe_initialization_failed' || err.error === 'origin_mismatch') {
+      return 'Domain not whitelisted in Google Cloud Console. Add origin to Authorized JavaScript Origins.';
+    }
+    return err.error;
+  }
+  if (err.message) return err.message;
+  return 'Google sign-in failed. Please try again.';
+};
 
 export default function GoogleAuthButton() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const { theme } = useTheme();
-
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-  // 1. Popup OAuth flow (Works 100% on Mobile Chrome & Safari)
+  // 1. Popup OAuth flow (Works on Mobile Chrome & Safari)
   const handlePopupLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
@@ -24,13 +38,12 @@ export default function GoogleAuthButton() {
         toast.success('Google clearance granted.');
         navigate('/app');
       } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
-        toast.error(`Google Login Error: ${errorMsg}`);
+        toast.error(`Google Login: ${formatGoogleError(error)}`);
       }
     },
-    onError: (error) => {
-      console.error('Google Popup login failed:', error);
-      toast.error('Google Sign-In window closed or blocked by browser.');
+    onError: (errorResponse) => {
+      console.error('Google Popup login failed:', errorResponse);
+      toast.error(`Google Login: ${formatGoogleError(errorResponse)}`);
     },
   });
 
@@ -44,8 +57,7 @@ export default function GoogleAuthButton() {
       toast.success('Google clearance granted.');
       navigate('/app');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
-      toast.error(`Google Login Error: ${errorMsg}`);
+      toast.error(`Google Login: ${formatGoogleError(error)}`);
     }
   };
 
@@ -56,12 +68,16 @@ export default function GoogleAuthButton() {
         type="button"
         onClick={() => {
           if (!clientId || clientId.includes('YOUR_GOOGLE_CLIENT_ID')) {
-            toast.error('Google Client ID not configured. Please set VITE_GOOGLE_CLIENT_ID in env.');
+            toast.error('VITE_GOOGLE_CLIENT_ID missing in Vercel environment variables.');
             return;
           }
-          handlePopupLogin();
+          try {
+            handlePopupLogin();
+          } catch (e) {
+            toast.error(`Google Login: ${formatGoogleError(e)}`);
+          }
         }}
-        className="btn-brutal w-full bg-white dark:bg-[#141417] text-black dark:text-white border border-[#E8E4DD] dark:border-white/10 py-3 px-4 rounded-xl font-sans text-sm font-semibold flex items-center justify-center gap-3 shadow-sm hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
+        className="btn-brutal w-full bg-white dark:bg-[#141417] text-black dark:text-white border border-[#E8E4DD] dark:border-white/10 py-3.5 px-4 rounded-xl font-sans text-sm font-semibold flex items-center justify-center gap-3 shadow-sm hover:bg-neutral-50 dark:hover:bg-white/10 active:scale-95 transition-all"
       >
         <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
           <path
@@ -89,8 +105,8 @@ export default function GoogleAuthButton() {
         <div className="hidden">
           <GoogleLogin
             onSuccess={handleStandardSuccess}
-            onError={() => {
-              console.warn('Google Standard login failed');
+            onError={(err) => {
+              console.warn('Google Standard login failed:', err);
             }}
             useOneTap={false}
           />
