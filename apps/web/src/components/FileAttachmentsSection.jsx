@@ -23,133 +23,107 @@ export default function FileAttachmentsSection({ taskId, projectId, attachments 
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadAttachmentMutation = useMutation({
-    mutationFn: async ({ filename, fileData, fileType }) => {
-      const res = await api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, {
-        filename,
-        fileData,
-        fileType
+    mutationFn: async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await api.post(`/projects/${projectId}/tasks/${taskId}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      return res.data;
+      return data;
     },
+    onMutate: () => setIsUploading(true),
     onSuccess: () => {
-      queryClient.invalidateQueries(['tasks', projectId]);
-      toast.success('Attachment uploaded successfully!');
       setIsUploading(false);
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast.success('Attachment uploaded successfully!');
     },
     onError: (err) => {
-      toast.error(err.response?.data?.error || 'Failed to upload attachment');
       setIsUploading(false);
+      toast.error(err.response?.data?.error || 'Failed to upload attachment');
     }
   });
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: async (attachmentId) => {
-      const res = await api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attachmentId}`);
-      return res.data;
+      await api.delete(`/projects/${projectId}/tasks/${taskId}/attachments/${attachmentId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['tasks', projectId]);
-      toast.success('Attachment deleted');
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast.success('Attachment removed');
     },
     onError: (err) => {
       toast.error(err.response?.data?.error || 'Failed to delete attachment');
     }
   });
 
-  const handleFileSelect = (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error('File size exceeds 15MB limit');
-      return;
+    if (file) {
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error('File size cannot exceed 20MB');
+        return;
+      }
+      uploadAttachmentMutation.mutate(file);
     }
-
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Data = event.target?.result;
-      uploadAttachmentMutation.mutate({
-        filename: file.name,
-        fileData: base64Data,
-        fileType: file.type || 'application/octet-stream'
-      });
-    };
-    reader.onerror = () => {
-      toast.error('Error reading file');
-      setIsUploading(false);
-    };
-    reader.readAsDataURL(file);
-
-    // Reset input
-    e.target.value = '';
   };
 
-  const getFileIcon = (fileType, filename = '') => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    
-    if (['xlsx', 'xls', 'csv'].includes(ext) || fileType.includes('spreadsheet') || fileType.includes('csv')) {
-      return <FileSpreadsheet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
+  const getFileIcon = (fileType, filename) => {
+    const lowerType = (fileType || '').toLowerCase();
+    const lowerName = (filename || '').toLowerCase();
+
+    if (lowerType.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/.test(lowerName)) {
+      return <ImageIcon className="w-4 h-4 text-emerald-500" />;
     }
-    if (['pdf', 'docx', 'doc', 'txt'].includes(ext) || fileType.includes('pdf') || fileType.includes('word') || fileType.includes('text')) {
-      return <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+    if (lowerType.includes('pdf') || lowerName.endsWith('.pdf')) {
+      return <FileText className="w-4 h-4 text-red-500" />;
     }
-    if (['mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'].includes(ext) || fileType.includes('audio')) {
-      return <Music className="w-5 h-5 text-purple-600 dark:text-purple-400" />;
+    if (lowerType.includes('sheet') || lowerType.includes('csv') || lowerType.includes('excel') || /\.(xlsx?|csv)$/.test(lowerName)) {
+      return <FileSpreadsheet className="w-4 h-4 text-emerald-600" />;
     }
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext) || fileType.includes('image')) {
-      return <ImageIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />;
+    if (lowerType.startsWith('audio/') || /\.(mp3|wav|ogg|m4a)$/.test(lowerName)) {
+      return <Music className="w-4 h-4 text-purple-500" />;
     }
-    return <File className="w-5 h-5 text-gray-500" />;
+    return <File className="w-4 h-4 text-blue-500" />;
   };
 
   const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 B';
+    if (!bytes) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getFullFileUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${API_BASE}${path}`;
-  };
-
   return (
-    <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-2xl border border-[#E8E4DD] dark:border-white/10 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Paperclip className="w-4 h-4 text-[#E63B2E]" />
-          <h3 className="font-mono text-xs text-black/60 dark:text-white/60 uppercase tracking-widest font-bold">
-            Attachments ({attachments.length})
-          </h3>
-        </div>
-
+    <div className="mt-6 border-t border-[#E8E4DD] dark:border-white/10 pt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-black/60 dark:text-white/60 flex items-center gap-2">
+          <Paperclip className="w-3.5 h-3.5" />
+          <span>Attachments ({attachments.length})</span>
+        </h4>
         {canEdit && (
           <div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              className="hidden"
-              accept=".pdf,.xlsx,.xls,.csv,.docx,.doc,.mp3,.wav,.m4a,.ogg,.aac,.txt,.png,.jpg,.jpeg,.gif,.webp"
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              className="hidden" 
             />
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="btn-brutal bg-[#F5F3EE] dark:bg-white/10 text-black dark:text-white text-xs px-3 py-1.5 rounded-xl border border-[#E8E4DD] dark:border-white/10 hover:border-black dark:hover:border-white flex items-center gap-1.5 font-medium transition-all disabled:opacity-50"
+              className="px-2.5 py-1 text-xs font-mono font-medium rounded-lg bg-white dark:bg-white/10 text-black dark:text-white border border-[#E8E4DD] dark:border-white/10 hover:border-signal-red hover:text-signal-red transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
             >
               {isUploading ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin text-signal-red" />
                   <span>Uploading...</span>
                 </>
               ) : (
                 <>
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Attach File</span>
+                  <Plus className="w-3 h-3" />
+                  <span>Add File</span>
                 </>
               )}
             </button>
@@ -158,72 +132,55 @@ export default function FileAttachmentsSection({ taskId, projectId, attachments 
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-black/40 dark:text-white/40 italic font-mono text-xs text-center py-4 bg-[#F5F3EE] dark:bg-white/5 rounded-xl border border-dashed border-[#E8E4DD] dark:border-white/10">
-          No files attached yet. (Supports Excel, CSV, PDF, Word, Audio & Images)
+        <p className="text-xs font-mono text-black/40 dark:text-white/40 italic py-2">
+          No files attached to this task protocol.
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {attachments.map((att) => {
-            const ext = att.filename.split('.').pop()?.toLowerCase();
-            const isAudio = ['mp3', 'wav', 'm4a', 'ogg', 'aac'].includes(ext) || att.fileType?.includes('audio');
-            const fileUrl = getFullFileUrl(att.fileUrl);
-
+            const downloadUrl = att.url || `${API_BASE}/api/projects/${projectId}/tasks/${taskId}/attachments/${att.id}/download`;
             return (
-              <div
-                key={att.id}
-                className="bg-[#F5F3EE] dark:bg-white/5 p-3 rounded-xl border border-[#E8E4DD] dark:border-white/10 flex flex-col gap-2 transition-all hover:border-black/30 dark:hover:border-white/30"
+              <div 
+                key={att.id || att._id} 
+                className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#141417] border border-[#E8E4DD] dark:border-white/10 hover:border-signal-red/50 transition-all shadow-sm group"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="p-2 rounded-lg bg-white dark:bg-black/40 border border-[#E8E4DD] dark:border-white/10 shrink-0">
-                      {getFileIcon(att.fileType, att.filename)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-sans text-xs font-semibold text-black dark:text-white truncate" title={att.filename}>
-                        {att.filename}
-                      </h4>
-                      <p className="text-[10px] font-mono text-black/50 dark:text-white/50">
-                        {formatFileSize(att.fileSize)}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                  <div className="p-1.5 rounded-lg bg-off-white dark:bg-white/5 border border-[#E8E4DD] dark:border-white/10 shrink-0">
+                    {getFileIcon(att.fileType, att.filename)}
                   </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <a
-                      href={fileUrl}
-                      download={att.filename}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors"
-                      title="Download File"
-                    >
-                      <Download className="w-4 h-4" />
-                    </a>
-                    {canEdit && (
-                      <button
-                        onClick={() => deleteAttachmentMutation.mutate(att.id)}
-                        disabled={deleteAttachmentMutation.isPending}
-                        className="p-1.5 rounded-lg text-black/40 dark:text-white/40 hover:text-signal-red hover:bg-white dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-                        title="Delete Attachment"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-sans font-medium text-black dark:text-white truncate" title={att.filename}>
+                      {att.filename}
+                    </p>
+                    <p className="text-[10px] font-mono text-black/40 dark:text-white/40">
+                      {formatFileSize(att.fileSize)}
+                    </p>
                   </div>
                 </div>
 
-                {/* Inline HTML5 Audio Player for audio files */}
-                {isAudio && (
-                  <div className="mt-1 pt-2 border-t border-[#E8E4DD]/60 dark:border-white/10">
-                    <audio
-                      controls
-                      src={fileUrl}
-                      className="w-full h-8 rounded"
+                <div className="flex items-center gap-1 shrink-0">
+                  <a
+                    href={downloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    download={att.filename}
+                    className="p-1.5 text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:bg-off-white dark:hover:bg-white/10 rounded-lg transition-colors"
+                    title="Download File"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </a>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => deleteAttachmentMutation.mutate(att.id || att._id)}
+                      disabled={deleteAttachmentMutation.isPending}
+                      className="p-1.5 text-black/40 dark:text-white/40 hover:text-signal-red hover:bg-signal-red/10 rounded-lg transition-colors disabled:opacity-40"
+                      title="Delete File"
                     >
-                      Your browser does not support playing audio directly.
-                    </audio>
-                  </div>
-                )}
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

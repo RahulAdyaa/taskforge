@@ -287,7 +287,7 @@ export default function AskProjectAIDrawer({ projectId, projectName, tasks = [] 
       {/* Raycast / Linear Style Floating AI Trigger Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 group flex items-center gap-3 px-4 py-2.5 rounded-full bg-[#09090B] text-white border border-white/20 shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(230,59,46,0.25)] hover:shadow-[0_10px_35px_rgba(230,59,46,0.45)] hover:border-[#E63B2E] hover:scale-105 active:scale-95 transition-all duration-300 backdrop-blur-xl"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 group flex items-center gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-2.5 rounded-full bg-[#09090B] text-white border border-white/20 shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(230,59,46,0.25)] hover:shadow-[0_10px_35px_rgba(230,59,46,0.45)] hover:border-[#E63B2E] hover:scale-105 active:scale-95 transition-all duration-300 backdrop-blur-xl"
       >
         <div className="relative flex items-center justify-center">
           <div className="w-2.5 h-2.5 rounded-full bg-[#E63B2E] animate-pulse" />
@@ -299,7 +299,7 @@ export default function AskProjectAIDrawer({ projectId, projectName, tasks = [] 
           <span>Ask Project AI</span>
         </span>
 
-        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E63B2E]/15 text-[#E63B2E] border border-[#E63B2E]/30 uppercase tracking-wider">
+        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E63B2E]/15 text-[#E63B2E] border border-[#E63B2E]/30 uppercase tracking-wider hidden sm:inline-block">
           RAG
         </span>
       </button>
@@ -315,11 +315,11 @@ export default function AskProjectAIDrawer({ projectId, projectName, tasks = [] 
           />
 
           {/* Drawer Container */}
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
             <div
               ref={drawerRef}
               data-lenis-prevent
-              className="w-screen max-w-2xl bg-[#09090B] text-white flex flex-col border-l border-white/10 shadow-2xl relative"
+              className="w-screen max-w-full sm:max-w-2xl bg-[#09090B] text-white flex flex-col border-l border-white/10 shadow-2xl relative"
             >
               {/* Drawer Header */}
               <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-[#09090B] sticky top-0 z-20">
