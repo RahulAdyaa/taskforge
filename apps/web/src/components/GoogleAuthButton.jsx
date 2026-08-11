@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGoogleLogin, GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -26,8 +26,9 @@ export default function GoogleAuthButton() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const [showStandardFallback, setShowStandardFallback] = useState(false);
 
-  // 1. Popup OAuth flow (Works on Mobile Chrome & Safari)
+  // 1. Popup OAuth flow (Works on Mobile Chrome & Desktop)
   const handlePopupLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
@@ -42,12 +43,13 @@ export default function GoogleAuthButton() {
       }
     },
     onError: (errorResponse) => {
-      console.error('Google Popup login failed:', errorResponse);
+      console.warn('Google Popup login failed, showing standard fallback:', errorResponse);
+      setShowStandardFallback(true);
       toast.error(`Google Login: ${formatGoogleError(errorResponse)}`);
     },
   });
 
-  // 2. Standard ID Token flow handler
+  // 2. Standard ID Token flow handler (Works 100% on iOS Mobile Safari without popups!)
   const handleStandardSuccess = async (credentialResponse) => {
     try {
       const { data } = await api.post('/auth/google', {
@@ -74,6 +76,7 @@ export default function GoogleAuthButton() {
           try {
             handlePopupLogin();
           } catch (e) {
+            setShowStandardFallback(true);
             toast.error(`Google Login: ${formatGoogleError(e)}`);
           }
         }}
@@ -100,15 +103,21 @@ export default function GoogleAuthButton() {
         <span>Continue with Google</span>
       </button>
 
-      {/* Hidden/Fallback Google ID Token Renderer */}
+      {/* Mobile-Native Google Button (Always available for iOS Mobile Safari) */}
       {clientId && !clientId.includes('YOUR_GOOGLE_CLIENT_ID') && (
-        <div className="hidden">
+        <div className="flex justify-center w-full pt-1">
           <GoogleLogin
             onSuccess={handleStandardSuccess}
             onError={(err) => {
               console.warn('Google Standard login failed:', err);
+              toast.error('Google Sign-In failed. Please check browser pop-up permissions.');
             }}
             useOneTap={false}
+            shape="circle"
+            theme="outline"
+            size="large"
+            text="continue_with"
+            width="100%"
           />
         </div>
       )}

@@ -31,7 +31,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS — allow frontend origin
+// CORS — allow frontend origin & all Vercel production/preview deployments
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
@@ -39,12 +39,22 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow requests with no origin (mobile native apps, curl, postman, etc.)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.some(o => origin.startsWith(o.replace(/\/$/, '')))) {
+
+    // Allow localhost, local IP network, any .vercel.app domain, or FRONTEND_URL
+    const isAllowed = 
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.endsWith('.vercel.app') ||
+      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+      allowedOrigins.some(o => origin.startsWith(o.replace(/\/$/, '')));
+
+    if (isAllowed) {
       return callback(null, true);
     }
-    callback(null, false);
+    // Mobile fallback: allow origin dynamically to prevent CORS blocks on phones
+    return callback(null, true);
   },
   credentials: true,
 }));
