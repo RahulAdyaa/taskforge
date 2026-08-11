@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { GoogleLogin } from '@react-oauth/google';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 import api from '../lib/axios';
 import { useAuthStore } from '../store/authStore';
-import { useTheme } from '../store/themeStore';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -12,9 +11,8 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-  const setAuth = useAuthStore(state => state.setAuth);
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
-  const { theme } = useTheme();
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -23,7 +21,6 @@ export default function Signup() {
   }, [isAuthenticated, navigate]);
 
   const handleUsernameChange = (e) => {
-    // Force lowercase, only allow alphanumeric and underscores
     const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
     setUsername(val);
   };
@@ -41,56 +38,48 @@ export default function Signup() {
       navigate('/app');
     } catch (error) {
       if (error.response?.data?.details) {
-         toast.error(error.response.data.details[0].message);
+        toast.error(error.response.data.details[0].message);
       } else {
-         toast.error(error.response?.data?.error || 'Registration failed');
+        toast.error(error.response?.data?.error || 'Registration failed');
       }
-    }
-  };
-
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const { data } = await api.post('/auth/google', { token: credentialResponse.credential });
-      setAuth(data.user, data.accessToken);
-      toast.success('Google clearance granted.');
-      navigate('/app');
-    } catch (error) {
-      const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
-      toast.error(`Google authentication failed: ${errorMsg}`);
     }
   };
 
   return (
     <div className="min-h-screen bg-off-white flex flex-col justify-center items-center px-6">
-      <Link to="/" className="font-display text-2xl font-bold mb-12 absolute top-8 left-8">TASKFORGE</Link>
-      
+      <Link to="/" className="font-display text-2xl font-bold mb-12 absolute top-8 left-8">
+        TASKFORGE
+      </Link>
+
       <div className="w-full max-w-md bg-[#F5F3EE] p-10 rounded-[2rem] border border-[#E8E4DD] shadow-xl">
         <h2 className="font-display font-extrabold text-4xl tracking-tight mb-2 text-center">New Identity</h2>
-        <p className="font-mono text-xs text-black/50 text-center mb-8 uppercase tracking-widest">Register in system</p>
-        
+        <p className="font-mono text-xs text-black/50 text-center mb-8 uppercase tracking-widest">
+          Register in system
+        </p>
+
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block font-mono text-sm mb-2">Designation (Name)</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red transition-colors"
-              required 
+              required
             />
           </div>
           <div>
             <label className="block font-mono text-sm mb-2">Username</label>
             <div className="relative">
               <span className="absolute left-4 top-3 text-black/40 font-mono text-sm">@</span>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={username}
                 onChange={handleUsernameChange}
                 placeholder="your_handle"
                 maxLength={30}
                 className="w-full bg-white border border-[#E8E4DD] pl-9 pr-4 py-3 rounded-xl font-mono text-sm focus:outline-none focus:border-signal-red transition-colors"
-                required 
+                required
               />
             </div>
             {username && username.length < 3 && (
@@ -98,29 +87,28 @@ export default function Signup() {
             )}
           </div>
           <div>
-            <label className="block font-mono text-sm mb-2">Email Identity</label>
-            <input 
-              type="email" 
+            <label className="block font-mono text-sm mb-2">Email Address</label>
+            <input
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red transition-colors"
-              required 
+              required
             />
           </div>
           <div>
-            <label className="block font-mono text-sm mb-2">Access Code</label>
-            <input 
-              type="password" 
+            <label className="block font-mono text-sm mb-2">Access Code (Password)</label>
+            <input
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red transition-colors"
-              required 
-              placeholder="Min 8 chars, 1 number"
+              required
             />
           </div>
-          
-          <button type="submit" className="btn-brutal w-full bg-signal-red text-white py-4 rounded-xl font-medium mt-4">
-            <span className="relative z-10">Establish Clearance</span>
+
+          <button type="submit" className="btn-brutal w-full bg-black text-white py-4 rounded-xl font-medium mt-4">
+            <span className="relative z-10">Create Clearance</span>
           </button>
         </form>
 
@@ -131,22 +119,14 @@ export default function Signup() {
         </div>
 
         <div className="flex justify-center w-full">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={() => {
-              toast.error('Google Sign-In Failed');
-            }}
-            theme={theme === 'dark' ? 'filled_black' : 'outline'}
-            size="large"
-            shape="rectangular"
-            width="368"
-            logo_alignment="left"
-          />
+          <GoogleAuthButton />
         </div>
-        
+
         <div className="mt-8 text-center font-sans text-sm">
-          <span className="text-black/60">Already registered? </span>
-          <Link to="/login" className="text-black font-medium hover:underline">Authenticate</Link>
+          <span className="text-black/60">Already have clearance? </span>
+          <Link to="/login" className="text-signal-red font-medium hover:underline">
+            Login Protocol
+          </Link>
         </div>
       </div>
     </div>

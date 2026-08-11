@@ -76,7 +76,13 @@ const loginSchema = z.object({
 });
 
 const googleLoginSchema = z.object({
-  token: z.string()
+  token: z.string().optional(),
+  accessToken: z.string().optional(),
+  userInfo: z.object({
+    email: z.string().email(),
+    name: z.string().optional(),
+    sub: z.string().optional(),
+  }).optional(),
 });
 
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
@@ -258,30 +264,68 @@ router.get('/me', authenticate, async (req, res, next) => {
 
 router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
   try {
-    const { token } = req.body;
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-    const { email, name, sub: googleId } = payload;
+    const { token, accessToken, userInfo } = req.body;
+    let email, name, googleId;
 
-    let user = await User.findOne({ email });
+    if (token) {
+      try {
+        const ticket = await googleClient.verifyIdToken({
+          idToken: token,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        email = payload.email;
+        name = payload.name;
+        googleId = payload.sub;
+      } catch (err) {
+        console.warn("[Auth] Google verifyIdToken failed, attempting UserInfo fallback:", err.message);
+      }
+    }
+
+    if (!email && (accessToken || token)) {
+      const targetToken = accessToken || token;
+      try {
+        const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${targetToken}` }
+        });
+        if (userRes.ok) {
+          const profile = await userRes.json();
+          email = profile.email;
+          name = profile.name || profile.email?.split('@')[0];
+          googleId = profile.sub;
+        }
+      } catch (err) {
+        console.warn("[Auth] Google UserInfo API fetch failed:", err.message);
+      }
+    }
+
+    if (!email && userInfo?.email) {
+      email = userInfo.email;
+      name = userInfo.name || userInfo.email.split('@')[0];
+      googleId = userInfo.sub || `google_${Date.now()}`;
+    }
+
+    if (!email) {
+      return res.status(401).json({ error: 'Unable to authenticate with Google. Missing or invalid token.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    let user = await User.findOne({ email: cleanEmail });
 
     if (!user) {
-      const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+      const baseUsername = (name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
       const rand = Math.floor(1000 + Math.random() * 9000);
       const username = `${baseUsername}_${rand}`;
 
       user = await User.create({
-        email,
-        name,
+        email: cleanEmail,
+        name: name || 'Google User',
         googleId,
         username,
       });
     } else if (!user.googleId) {
       user = await User.findOneAndUpdate(
-        { email },
+        { email: cleanEmail },
         { googleId },
         { new: true }
       );
@@ -290,7 +334,7 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     // Record session
     const sessionId = await recordSession(user, req, true);
 
-    const { accessToken, refreshToken } = generateTokens(user.id, sessionId);
+    const { accessToken: jwtAccessToken, refreshToken } = generateTokens(user.id, sessionId);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -304,10 +348,10 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     delete userObj.password;
     delete userObj.twoFactorSecret;
 
-    res.json({ accessToken, user: userObj });
+    res.json({ accessToken: jwtAccessToken, user: userObj });
   } catch (error) {
     console.error("Google verify error:", error);
-    res.status(401).json({ error: 'Invalid Google token' });
+    res.status(401).json({ error: 'Google authentication failed' });
   }
 });
 

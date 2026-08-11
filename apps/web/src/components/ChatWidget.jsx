@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useLocation } from 'react-router-dom';
+import { Square } from 'lucide-react';
 import api from '../lib/axios';
 
 export default function ChatWidget() {
@@ -9,6 +11,7 @@ export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // Extract projectId dynamically from URL path if inside a project view
   const projectMatch = pathname.match(/\/app\/projects\/([^/]+)/);
@@ -29,7 +32,7 @@ export default function ChatWidget() {
     return [
       {
         role: 'assistant',
-        content: 'Hi there! I am the TaskForge AI. How can I assist you with your projects, tasks, or settings?'
+        content: 'Hi there! I am TaskForge AI. How can I assist you with your projects, tasks, or settings?'
       }
     ];
   });
@@ -49,17 +52,34 @@ export default function ChatWidget() {
     if (isOpen) scrollToBottom();
   }, [messages, isOpen]);
 
+  const handleStopGenerating = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setMessages(prev => [...prev, { role: 'assistant', content: '⏹ *[Response generation stopped by user]*' }]);
+  };
+
   const chatMutation = useMutation({
     mutationFn: async (message) => {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const url = projectId ? `/projects/${projectId}/chat` : `/settings/chat`;
-      const { data } = await api.post(url, { message });
+      const { data } = await api.post(url, { message }, { signal: controller.signal });
       return data.reply;
     },
     onSuccess: (reply) => {
+      abortControllerRef.current = null;
       const cleaned = reply.replace(/<\/?(?:assistant|system|user|thought|chat|im_end|assistant_response)>/gi, '').trim();
       setMessages(prev => [...prev, { role: 'assistant', content: cleaned }]);
     },
-    onError: () => {
+    onError: (err) => {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+        abortControllerRef.current = null;
+        return;
+      }
+      abortControllerRef.current = null;
       setMessages(prev => [...prev, { role: 'assistant', content: 'Oops! I encountered an error. Please try again.' }]);
     }
   });
@@ -130,31 +150,72 @@ export default function ChatWidget() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-[#F5F3EE] flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-[#F5F3EE] flex flex-col gap-4 font-sans text-sm leading-relaxed">
         {Array.isArray(messages) && messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl p-3.5 ${
+            <div className={`max-w-[88%] rounded-2xl p-3.5 ${
               msg.role === 'user' 
-                ? 'bg-black text-white rounded-tr-sm shadow-md' 
-                : 'bg-white border border-[#E8E4DD] shadow-md rounded-tl-sm'
+                ? 'bg-black text-white rounded-tr-xs shadow-md font-medium' 
+                : 'bg-white border border-[#E8E4DD] text-neutral-800 shadow-md rounded-tl-xs'
             }`}>
-              <div className={`font-sans text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'text-white/95 [&_a]:text-white [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold'
-                  : 'text-gray-800 dark:text-neutral-200 [&_a]:text-red-500 dark:[&_a]:text-red-400 [&_a]:underline [&_a]:hover:text-red-600 dark:[&_a]:hover:text-red-300 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:mb-1 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_strong]:font-bold dark:[&_strong]:text-white [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1'
-              }`}>
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <div className="font-sans text-xs sm:text-sm leading-relaxed text-neutral-800 dark:text-neutral-100">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto my-2 rounded-lg border border-[#E8E4DD] bg-gray-50 shadow-sm">
+                        <table className="w-full text-left text-xs border-collapse" {...props} />
+                      </div>
+                    ),
+                    thead: ({ node, ...props }) => (
+                      <thead className="bg-gray-100 text-gray-800 font-mono text-[10px] uppercase border-b border-[#E8E4DD]" {...props} />
+                    ),
+                    th: ({ node, ...props }) => (
+                      <th className="p-2 font-bold px-2.5 text-gray-900" {...props} />
+                    ),
+                    td: ({ node, ...props }) => (
+                      <td className="p-2 px-2.5 border-b border-gray-200 text-gray-800 font-sans" {...props} />
+                    ),
+                    h1: ({ node, ...props }) => (
+                      <h1 className="text-sm font-extrabold text-black mt-3 mb-1" {...props} />
+                    ),
+                    h2: ({ node, ...props }) => (
+                      <h2 className="text-xs sm:text-sm font-bold text-gray-900 mt-2.5 mb-1" {...props} />
+                    ),
+                    ul: ({ node, ...props }) => (
+                      <ul className="list-disc pl-4 my-1.5 space-y-0.5" {...props} />
+                    ),
+                    ol: ({ node, ...props }) => (
+                      <ol className="list-decimal pl-4 my-1.5 space-y-0.5" {...props} />
+                    ),
+                    li: ({ node, ...props }) => (
+                      <li className="leading-relaxed" {...props} />
+                    ),
+                    p: ({ node, ...props }) => (
+                      <p className="my-1.5 leading-relaxed" {...props} />
+                    )
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </div>
           </div>
         ))}
         {chatMutation.isPending && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-[#E8E4DD] rounded-2xl rounded-tl-sm p-4 shadow-sm flex gap-1">
-              <div className="w-2 h-2 bg-black/40 rounded-full animate-bounce"></div>
-              <div className="w-2 h-2 bg-black/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-2 h-2 bg-black/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+          <div className="flex justify-between items-center bg-white border border-[#E8E4DD] rounded-xl p-3 shadow-sm text-xs font-sans text-neutral-600">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-black/40 rounded-full animate-ping"></div>
+              <span>Generating AI response...</span>
             </div>
+            <button
+              onClick={handleStopGenerating}
+              type="button"
+              className="flex items-center gap-1 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-mono text-[11px] font-bold transition-all shadow"
+            >
+              <Square className="w-3 h-3 fill-current" />
+              <span>Stop</span>
+            </button>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -168,14 +229,27 @@ export default function ChatWidget() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask me anything..."
           className="flex-1 bg-[#F5F3EE] border border-[#E8E4DD] rounded-xl px-4 py-2 font-sans focus:outline-none focus:border-black text-sm"
+          disabled={chatMutation.isPending}
         />
-        <button
-          type="submit"
-          disabled={!input.trim() || chatMutation.isPending}
-          className="bg-black text-white px-4 py-2 rounded-xl disabled:opacity-50 hover:bg-gray-800 transition-colors"
-        >
-          Send
-        </button>
+        {chatMutation.isPending ? (
+          <button
+            type="button"
+            onClick={handleStopGenerating}
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
+            title="Stop Generating"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+            <span>Stop</span>
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="bg-black text-white px-4 py-2 rounded-xl disabled:opacity-50 hover:bg-gray-800 transition-colors text-xs font-bold"
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   );

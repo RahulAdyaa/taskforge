@@ -1,5 +1,5 @@
 const express = require('express');
-const { Project, Task, AuditLog, Comment } = require('../models');
+const { Project, ProjectMember, Task, AuditLog, Comment } = require('../models');
 const authenticate = require('../middleware/authenticate');
 const requireProjectRole = require('../middleware/requireProjectRole');
 
@@ -70,13 +70,15 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Query string is required' });
     }
 
-    const project = await Project.findById(projectId)
-      .populate('members.user', 'name email')
-      .lean();
+    const project = await Project.findById(projectId).lean();
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
+
+    const projectMembers = await ProjectMember.find({ projectId })
+      .populate('userId', 'name email')
+      .lean();
 
     const tasks = await Task.find({ projectId })
       .populate('assigneeId', 'name email')
@@ -93,12 +95,13 @@ router.post('/', async (req, res, next) => {
 
     // Workload calculation
     const workloadMap = {};
-    (project.members || []).forEach(m => {
-      if (m.user) {
-        workloadMap[m.user._id.toString()] = {
-          name: m.user.name,
-          email: m.user.email,
-          role: m.role,
+    projectMembers.forEach(m => {
+      if (m.userId) {
+        const uId = m.userId._id?.toString() || m.userId.toString();
+        workloadMap[uId] = {
+          name: m.userId.name || 'Team Member',
+          email: m.userId.email || '',
+          role: m.role || 'MEMBER',
           activeTasks: 0,
           totalEstHours: 0,
         };
@@ -165,9 +168,83 @@ router.post('/', async (req, res, next) => {
       throw lastError || new Error('All AI models failed to respond');
     }
 
+    // ─── AI Agentic Task Creation Interceptor ───────────────────────
+    let createdTask = null;
+    const createTaskRegex = /```json:create_task\s*([\s\S]*?)\s*```/i;
+    const taskMatch = aiResult.match(createTaskRegex);
+
+    if (taskMatch) {
+      try {
+        const rawJson = taskMatch[1].trim();
+        const parsed = JSON.parse(rawJson);
+        
+        let assignedUser = req.user;
+        if (parsed.assigneeName && parsed.assigneeName !== 'Unassigned') {
+          const match = projectMembers.find(m => 
+            m.userId?.name?.toLowerCase().includes(parsed.assigneeName.toLowerCase()) ||
+            m.userId?.email?.toLowerCase().includes(parsed.assigneeName.toLowerCase())
+          );
+          if (match && match.userId) {
+            assignedUser = match.userId;
+          }
+        }
+
+        const maxPosTask = await Task.findOne({ projectId }).sort({ position: -1 }).lean();
+        const newPos = maxPosTask ? (maxPosTask.position || 0) + 1 : 0;
+
+        const taskDoc = await Task.create({
+          projectId,
+          title: parsed.title || 'New Task',
+          description: parsed.description || `Created via Ask Project AI on request of ${req.user.name}`,
+          status: ['TODO', 'IN_PROGRESS', 'DONE'].includes(parsed.status) ? parsed.status : 'TODO',
+          priority: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(parsed.priority) ? parsed.priority : 'MEDIUM',
+          estimatedHours: Number(parsed.estimatedHours) || 2,
+          assigneeId: assignedUser._id || assignedUser.id,
+          creatorId: req.user.id,
+          position: newPos,
+        });
+
+        createdTask = await Task.findById(taskDoc._id)
+          .populate('assigneeId', 'name email')
+          .populate('creatorId', 'name email')
+          .lean();
+
+        // Broadcast Socket.io event for real-time live board update!
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`project:${projectId}`).emit('task:created', createdTask);
+        }
+
+        // Log audit trail
+        await AuditLog.create({
+          action: 'TASK_CREATED_BY_AI',
+          details: JSON.stringify({ title: createdTask.title, taskId: createdTask._id, assignee: assignedUser.name }),
+          projectId,
+          userId: req.user.id,
+        });
+
+        // Replace the raw JSON code block in aiResult with a beautiful execution card
+        aiResult = aiResult.replace(createTaskRegex, '').trim() + `\n\n` + 
+          `---\n` +
+          `### ⚡ Task Created Live on Board!\n` +
+          `| Property | Details |\n` +
+          `| :--- | :--- |\n` +
+          `| **Task Title** | **${createdTask.title}** |\n` +
+          `| **Assignee** | 👤 ${createdTask.assigneeId?.name || 'Unassigned'} |\n` +
+          `| **Status** | 🟢 \`${createdTask.status}\` |\n` +
+          `| **Priority** | 🔥 \`${createdTask.priority}\` |\n` +
+          `| **Estimated** | ⏱️ ${createdTask.estimatedHours}h |\n` +
+          `| **Task ID** | \`${createdTask._id.toString().slice(0, 6)}\` |\n\n` +
+          `*The task card has been created in MongoDB and live-synced to your Kanban board!*`;
+
+      } catch (e) {
+        console.error('Failed to parse or create AI task:', e);
+      }
+    }
+
     await AuditLog.create({
       action: 'ASK_PROJECT_AI_QUERIED',
-      details: JSON.stringify({ query: query.slice(0, 100), model: usedModel }),
+      details: JSON.stringify({ query: query.slice(0, 100), model: usedModel, taskCreated: Boolean(createdTask) }),
       projectId,
       userId: req.user.id,
     });
@@ -175,6 +252,7 @@ router.post('/', async (req, res, next) => {
     res.json({
       answer: aiResult,
       model: usedModel,
+      createdTask,
     });
   } catch (error) {
     next(error);
