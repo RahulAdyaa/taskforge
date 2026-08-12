@@ -28,10 +28,13 @@ const connectDB = async (attempt = 1) => {
   }
 
 
-  const uri = process.env.MONGODB_URI || "mongodb+srv://rahuladyayt_db_user:FYFt9Fu1GkhzQtrH@taskforge.g39xxvz.mongodb.net/taskforge?retryWrites=true&w=majority&appName=TaskForge";
+  const uri = process.env.MONGODB_URI;
 
   if (!uri) {
     console.error('FATAL: MONGODB_URI is not defined in environment variables.');
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
     throw new Error('MONGODB_URI not defined');
   }
 

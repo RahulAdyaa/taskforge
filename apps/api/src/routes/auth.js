@@ -78,38 +78,36 @@ const loginSchema = z.object({
 const googleLoginSchema = z.object({
   token: z.string().optional(),
   accessToken: z.string().optional(),
-  credential: z.string().optional(),
   userInfo: z.object({
     email: z.string().email(),
     name: z.string().optional(),
     sub: z.string().optional(),
   }).optional(),
-}).passthrough();
+});
 
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
   try {
     const { name, username, email, password } = req.body;
-    const cleanEmail = email.toLowerCase().trim();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ email: cleanEmail }, { username: username.toLowerCase() }]
-    });
-
-    if (existingUser) {
-      if (existingUser.email === cleanEmail) {
-        return res.status(409).json({ error: 'Email already registered.' });
-      }
-      return res.status(409).json({ error: 'Username already taken.' });
+    // Check email uniqueness
+    const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    if (existingEmail) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Check username uniqueness
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername) {
+      return res.status(409).json({ error: 'This username is already taken.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       name,
-      username: username.toLowerCase(),
-      email: cleanEmail,
+      email,
       password: hashedPassword,
+      username: username.toLowerCase(),
     });
 
     // Record session
@@ -266,42 +264,24 @@ router.get('/me', authenticate, async (req, res, next) => {
 
 router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
   try {
-    const { token: bodyToken, accessToken, credential, userInfo } = req.body;
-    const token = bodyToken || credential;
+    const { token, accessToken, userInfo } = req.body;
     let email, name, googleId;
 
-    // 1. Try Google Tokeninfo REST API (works for ID tokens)
     if (token) {
       try {
-        const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-        if (tokenRes.ok) {
-          const payload = await tokenRes.json();
-          email = payload.email;
-          name = payload.name;
-          googleId = payload.sub;
-        }
+        const ticket = await googleClient.verifyIdToken({
+          idToken: token,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        email = payload.email;
+        name = payload.name;
+        googleId = payload.sub;
       } catch (err) {
-        console.warn("[Auth] Tokeninfo API fetch failed:", err.message);
-      }
-
-      // Fallback: Try verifyIdToken if client initialized
-      if (!email && process.env.GOOGLE_CLIENT_ID) {
-        try {
-          const ticket = await googleClient.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID,
-          });
-          const payload = ticket.getPayload();
-          email = payload.email;
-          name = payload.name;
-          googleId = payload.sub;
-        } catch (err) {
-          console.warn("[Auth] verifyIdToken failed:", err.message);
-        }
+        console.warn("[Auth] Google verifyIdToken failed, attempting UserInfo fallback:", err.message);
       }
     }
 
-    // 2. Try Google UserInfo REST API (works for OAuth access tokens)
     if (!email && (accessToken || token)) {
       const targetToken = accessToken || token;
       try {
@@ -315,7 +295,7 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
           googleId = profile.sub;
         }
       } catch (err) {
-        console.warn("[Auth] UserInfo API fetch failed:", err.message);
+        console.warn("[Auth] Google UserInfo API fetch failed:", err.message);
       }
     }
 
@@ -326,7 +306,7 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     }
 
     if (!email) {
-      return res.status(401).json({ error: 'Unable to verify Google credentials. Invalid or expired token.' });
+      return res.status(401).json({ error: 'Unable to authenticate with Google. Missing or invalid token.' });
     }
 
     const cleanEmail = email.toLowerCase().trim();
@@ -343,9 +323,12 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
         googleId,
         username,
       });
-    } else if (!user.googleId && googleId) {
-      user.googleId = googleId;
-      await user.save();
+    } else if (!user.googleId) {
+      user = await User.findOneAndUpdate(
+        { email: cleanEmail },
+        { googleId },
+        { new: true }
+      );
     }
 
     // Record session
@@ -365,10 +348,10 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
     delete userObj.password;
     delete userObj.twoFactorSecret;
 
-    return res.json({ accessToken: jwtAccessToken, user: userObj });
+    res.json({ accessToken: jwtAccessToken, user: userObj });
   } catch (error) {
-    console.error("[Auth Google Route Error]:", error);
-    return res.status(400).json({ error: error.message || 'Google authentication failed' });
+    console.error("Google verify error:", error);
+    res.status(401).json({ error: 'Google authentication failed' });
   }
 });
 

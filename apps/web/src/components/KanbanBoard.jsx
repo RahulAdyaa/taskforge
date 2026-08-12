@@ -244,9 +244,8 @@ function TaskCard({ task, projectId, onClick, isOverlay }) {
       ref={setNodeRef} 
       {...listeners} 
       {...attributes}
-      onClick={onClick}
       onDoubleClick={onClick}
-      className={`${isDragging ? 'opacity-30' : ''} cursor-pointer`}
+      className={`${isDragging ? 'opacity-30' : ''}`}
     >
       <TaskCardUI task={task} projectId={projectId} onClick={onClick} />
     </div>

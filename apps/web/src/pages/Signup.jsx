@@ -46,14 +46,14 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-off-white flex flex-col justify-center items-center px-4 py-8 relative">
-      <Link to="/" className="font-display text-2xl font-bold mb-6 text-black hover:text-signal-red transition-colors">
+    <div className="min-h-screen bg-off-white flex flex-col justify-center items-center px-6">
+      <Link to="/" className="font-display text-2xl font-bold mb-12 absolute top-8 left-8">
         TASKFORGE
       </Link>
 
-      <div className="w-full max-w-md bg-[#F5F3EE] p-6 sm:p-10 rounded-2xl sm:rounded-[2rem] border border-[#E8E4DD] shadow-xl">
-        <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tight mb-2 text-center">New Identity</h2>
-        <p className="font-mono text-xs text-black/50 text-center mb-6 sm:mb-8 uppercase tracking-widest">
+      <div className="w-full max-w-md bg-[#F5F3EE] p-10 rounded-[2rem] border border-[#E8E4DD] shadow-xl">
+        <h2 className="font-display font-extrabold text-4xl tracking-tight mb-2 text-center">New Identity</h2>
+        <p className="font-mono text-xs text-black/50 text-center mb-8 uppercase tracking-widest">
           Register in system
         </p>
 

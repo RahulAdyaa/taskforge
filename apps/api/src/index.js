@@ -19,7 +19,6 @@ const settingsRoutes = require('./routes/settings');
 const cronRoutes = require('./routes/cron');
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // ─── Fix Express v5 strict Forwarded header validation on Vercel ───
@@ -32,7 +31,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS — allow frontend origin & all Vercel production/preview deployments
+// CORS — allow frontend origin
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
@@ -40,22 +39,12 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile native apps, curl, postman, etc.)
+    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-
-    // Allow localhost, local IP network, any .vercel.app domain, or FRONTEND_URL
-    const isAllowed = 
-      origin.includes('localhost') ||
-      origin.includes('127.0.0.1') ||
-      origin.endsWith('.vercel.app') ||
-      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin) ||
-      allowedOrigins.some(o => origin.startsWith(o.replace(/\/$/, '')));
-
-    if (isAllowed) {
+    if (allowedOrigins.some(o => origin.startsWith(o.replace(/\/$/, '')))) {
       return callback(null, true);
     }
-    // Mobile fallback: allow origin dynamically to prevent CORS blocks on phones
-    return callback(null, true);
+    callback(null, false);
   },
   credentials: true,
 }));
@@ -76,8 +65,8 @@ app.use(compression());
 
 app.use('/uploads', express.static(uploadsDir));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
 
 // Rate limiters for DDoS protection & high-concurrency event loop protection
@@ -87,8 +76,6 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many API requests from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
-  skip: () => Boolean(process.env.VERCEL),
 });
 
 const authLimiter = rateLimit({
@@ -97,8 +84,6 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
-  skip: () => Boolean(process.env.VERCEL),
 });
 
 const aiLimiter = rateLimit({
@@ -107,8 +92,6 @@ const aiLimiter = rateLimit({
   message: { error: 'AI rate limit exceeded for this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
-  skip: () => Boolean(process.env.VERCEL),
 });
 
 // ─── Safe event emitter (no-op when Socket.IO unavailable) ─────────
