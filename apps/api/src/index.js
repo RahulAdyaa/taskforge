@@ -85,8 +85,10 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
 
-// Rate limiters for DDoS protection & high-concurrency event loop protection
-const apiLimiter = rateLimit({
+// Rate limiters — use passthrough in Vercel serverless (Vercel edge handles DDoS)
+const rateLimitNoop = (_req, _res, next) => next();
+
+const apiLimiter = process.env.VERCEL ? rateLimitNoop : rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   message: { error: 'Too many API requests from this IP, please try again after 15 minutes.' },
@@ -94,7 +96,7 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const authLimiter = rateLimit({
+const authLimiter = process.env.VERCEL ? rateLimitNoop : rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
   message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
@@ -102,7 +104,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const aiLimiter = rateLimit({
+const aiLimiter = process.env.VERCEL ? rateLimitNoop : rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
   message: { error: 'AI rate limit exceeded for this IP, please try again after 15 minutes.' },
