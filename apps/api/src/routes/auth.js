@@ -70,7 +70,11 @@ async function recordSession(user, req, isSuccess = true) {
     }
   }
 
-  await user.save();
+  try {
+    await user.save();
+  } catch (err) {
+    console.error('[Session Error] Failed to save session activity:', err.message);
+  }
   return sessionId;
 }
 

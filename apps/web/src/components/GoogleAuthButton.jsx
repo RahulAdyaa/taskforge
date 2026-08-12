@@ -25,13 +25,9 @@ export default function GoogleAuthButton() {
         if (Array.isArray(resData.details) && typeof resData.details[0] === 'string') {
           return resData.details[0];
         }
-      } else if (typeof resData === 'string' && resData.length < 150) {
+      } else if (typeof resData === 'string' && resData.length < 200 && !resData.includes('<!DOCTYPE')) {
         return resData;
       }
-    }
-
-    if (error.response?.status === 500) {
-      return 'Server Error (500). Please check server environment or logs.';
     }
 
     if (typeof error.error_description === 'string') return error.error_description;
@@ -39,6 +35,11 @@ export default function GoogleAuthButton() {
     if (typeof error.message === 'string' && !error.message.includes('object Object')) {
       return error.message;
     }
+
+    if (error.response?.status) {
+      return `Server Error (${error.response.status}). Please try again.`;
+    }
+
     return 'Google Sign-In failed or was cancelled';
   };
 
