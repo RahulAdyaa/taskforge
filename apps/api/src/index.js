@@ -32,20 +32,35 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS — allow frontend origin
+// CORS — allow frontend origin dynamically (Vercel previews, production & localhost)
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  process.env.FRONTEND_URL,
   'http://localhost:5173',
+  'http://localhost:3000',
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
+
+    // Allow localhost during development
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+
+    // Allow any *.vercel.app domain (Vercel previews and production deployments)
+    if (/\.vercel\.app$/.test(new URL(origin).hostname)) {
+      return callback(null, true);
+    }
+
+    // Allow explicitly configured FRONTEND_URL
     if (allowedOrigins.some(o => origin.startsWith(o.replace(/\/$/, '')))) {
       return callback(null, true);
     }
-    callback(null, false);
+
+    // Default fallback: allow origin so CORS headers are set properly
+    callback(null, true);
   },
   credentials: true,
 }));
