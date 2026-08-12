@@ -151,19 +151,19 @@ if (!process.env.VERCEL) {
 
 // ─── Routes ────────────────────────────────────────────────────────
 // Health check — always works even if DB is down
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+app.get(['/api/health', '/health'], (req, res) => res.json({ status: 'ok' }));
 
 // Guard all API routes: return 503 while DB is reconnecting
-app.use('/api', requireDB);
-app.use('/api', apiLimiter);
+app.use(['/api', '/'], requireDB);
+app.use(['/api', '/'], apiLimiter);
 
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/my-tasks', myTasksRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/standup', aiLimiter, standupRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/cron', cronRoutes);
+app.use(['/api/auth', '/auth'], authLimiter, authRoutes);
+app.use(['/api/projects', '/projects'], projectRoutes);
+app.use(['/api/my-tasks', '/my-tasks'], myTasksRoutes);
+app.use(['/api/notifications', '/notifications'], notificationsRoutes);
+app.use(['/api/standup', '/standup'], aiLimiter, standupRoutes);
+app.use(['/api/settings', '/settings'], settingsRoutes);
+app.use(['/api/cron', '/cron'], cronRoutes);
 
 // Tasks and dashboard routes are nested under projects
 projectRoutes.use('/:projectId/tasks', taskRoutes);

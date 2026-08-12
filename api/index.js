@@ -4,6 +4,12 @@ const app = require('../apps/api/src/index');
 module.exports = async (req, res) => {
   try {
     await connectDB();
+
+    // Ensure req.url starts with '/api' for Express route matching on Vercel
+    if (req.url && !req.url.startsWith('/api')) {
+      req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+    }
+
     return app(req, res);
   } catch (err) {
     console.error('[Vercel Serverless Function Error]:', err);
