@@ -15,8 +15,11 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const router = express.Router();
 
 async function recordSession(user, req, isSuccess = true) {
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-  const userAgent = req.headers['user-agent'] || 'Unknown Browser';
+  const forwarded = req.headers ? req.headers['x-forwarded-for'] : undefined;
+  const ip = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
+    : (req.socket?.remoteAddress || '127.0.0.1');
+  const userAgent = req.headers ? (req.headers['user-agent'] || 'Unknown Browser') : 'Unknown Browser';
   
   let browser = 'Unknown Browser';
   if (userAgent.includes('Chrome')) browser = 'Chrome';
@@ -34,6 +37,10 @@ async function recordSession(user, req, isSuccess = true) {
     location = 'Remote Access';
   }
 
+  if (!Array.isArray(user.loginActivity)) {
+    user.loginActivity = [];
+  }
+
   user.loginActivity.push({
     ip,
     success: isSuccess,
@@ -45,6 +52,11 @@ async function recordSession(user, req, isSuccess = true) {
   if (isSuccess) {
     user.lastLoginAt = new Date();
     sessionId = crypto.randomBytes(16).toString('hex');
+
+    if (!Array.isArray(user.activeSessions)) {
+      user.activeSessions = [];
+    }
+
     user.activeSessions.push({
       id: sessionId,
       device: `${device} (${browser})`,
@@ -206,7 +218,7 @@ router.post('/refresh', async (req, res, next) => {
 
     // Verify session is still active
     if (payload.sessionId) {
-      const isSessionActive = user.activeSessions.some(s => s.id === payload.sessionId);
+      const isSessionActive = Array.isArray(user.activeSessions) && user.activeSessions.some(s => s.id === payload.sessionId);
       if (!isSessionActive) {
         return res.status(401).json({ error: 'Session has been revoked or expired' });
       }

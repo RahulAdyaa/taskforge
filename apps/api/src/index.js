@@ -19,6 +19,7 @@ const settingsRoutes = require('./routes/settings');
 const cronRoutes = require('./routes/cron');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // ─── Fix Express v5 strict Forwarded header validation on Vercel ───
