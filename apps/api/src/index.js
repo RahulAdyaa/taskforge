@@ -19,6 +19,7 @@ const settingsRoutes = require('./routes/settings');
 const cronRoutes = require('./routes/cron');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // ─── Fix Express v5 strict Forwarded header validation on Vercel ───
@@ -75,8 +76,8 @@ app.use(compression());
 
 app.use('/uploads', express.static(uploadsDir));
 
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Rate limiters for DDoS protection & high-concurrency event loop protection
@@ -86,6 +87,8 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many API requests from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
+  skip: () => Boolean(process.env.VERCEL),
 });
 
 const authLimiter = rateLimit({
@@ -94,6 +97,8 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
+  skip: () => Boolean(process.env.VERCEL),
 });
 
 const aiLimiter = rateLimit({
@@ -102,6 +107,8 @@ const aiLimiter = rateLimit({
   message: { error: 'AI rate limit exceeded for this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
+  skip: () => Boolean(process.env.VERCEL),
 });
 
 // ─── Safe event emitter (no-op when Socket.IO unavailable) ─────────
