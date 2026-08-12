@@ -40,9 +40,17 @@ export default function Login() {
       toast.success('Access granted.');
       navigate('/app');
     } catch (error) {
-      const errorData = error.response?.data;
-      const errorMessage = errorData?.details?.[0]?.message || errorData?.error || 'Authentication failed';
-      toast.error(errorMessage);
+      const data = error.response?.data;
+      let msg = 'Authentication failed';
+      if (typeof data?.error === 'string') {
+        msg = data.error;
+      } else if (Array.isArray(data?.details) && data.details.length > 0) {
+        const first = data.details[0];
+        msg = typeof first === 'string' ? first : (first?.message || JSON.stringify(first));
+      } else if (typeof data === 'string' && data.length < 150) {
+        msg = data;
+      }
+      toast.error(msg);
     }
   };
 

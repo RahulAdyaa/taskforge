@@ -37,11 +37,17 @@ export default function Signup() {
       toast.success('Identity registered.');
       navigate('/app');
     } catch (error) {
-      if (error.response?.data?.details) {
-        toast.error(error.response.data.details[0].message);
-      } else {
-        toast.error(error.response?.data?.error || 'Registration failed');
+      const data = error.response?.data;
+      let msg = 'Registration failed';
+      if (typeof data?.error === 'string') {
+        msg = data.error;
+      } else if (Array.isArray(data?.details) && data.details.length > 0) {
+        const first = data.details[0];
+        msg = typeof first === 'string' ? first : (first?.message || JSON.stringify(first));
+      } else if (typeof data === 'string' && data.length < 150) {
+        msg = data;
       }
+      toast.error(msg);
     }
   };
 
