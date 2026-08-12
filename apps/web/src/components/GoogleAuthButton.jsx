@@ -13,6 +13,27 @@ export default function GoogleAuthButton() {
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+  const extractError = (error) => {
+    if (!error) return 'Google authentication failed';
+    if (typeof error === 'string') return error;
+    
+    const resData = error.response?.data;
+    if (resData) {
+      if (typeof resData.error === 'string') return resData.error;
+      if (typeof resData.message === 'string') return resData.message;
+      if (Array.isArray(resData.details) && typeof resData.details[0] === 'string') {
+        return resData.details[0];
+      }
+    }
+
+    if (typeof error.error_description === 'string') return error.error_description;
+    if (typeof error.error === 'string') return error.error;
+    if (typeof error.message === 'string' && !error.message.includes('object Object')) {
+      return error.message;
+    }
+    return 'Google Sign-In failed or was cancelled';
+  };
+
   // 1. Popup OAuth flow (Works 100% on Mobile Chrome & Safari)
   const handlePopupLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -24,13 +45,14 @@ export default function GoogleAuthButton() {
         toast.success('Google clearance granted.');
         navigate('/app');
       } catch (error) {
-        const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
-        toast.error(`Google Login Error: ${errorMsg}`);
+        const msg = extractError(error);
+        toast.error(`Google Login Error: ${msg}`);
       }
     },
     onError: (error) => {
       console.error('Google Popup login failed:', error);
-      toast.error('Google Sign-In window closed or blocked by browser.');
+      const msg = extractError(error);
+      toast.error(`Google Sign-In Error: ${msg}`);
     },
   });
 
@@ -44,8 +66,8 @@ export default function GoogleAuthButton() {
       toast.success('Google clearance granted.');
       navigate('/app');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || error.message || 'Google authentication failed';
-      toast.error(`Google Login Error: ${errorMsg}`);
+      const msg = extractError(error);
+      toast.error(`Google Login Error: ${msg}`);
     }
   };
 
@@ -56,7 +78,7 @@ export default function GoogleAuthButton() {
         type="button"
         onClick={() => {
           if (!clientId || clientId.includes('YOUR_GOOGLE_CLIENT_ID')) {
-            toast.error('Google Client ID not configured. Please set VITE_GOOGLE_CLIENT_ID in env.');
+            toast.error('Google Client ID not configured. Please set VITE_GOOGLE_CLIENT_ID in environment variables.');
             return;
           }
           handlePopupLogin();

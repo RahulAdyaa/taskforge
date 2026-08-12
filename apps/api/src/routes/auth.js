@@ -293,6 +293,15 @@ router.post('/google', validate(googleLoginSchema), async (req, res, next) => {
           email = profile.email;
           name = profile.name || profile.email?.split('@')[0];
           googleId = profile.sub;
+        } else {
+          // Tokeninfo fallback
+          const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${targetToken}`);
+          if (tokenInfoRes.ok) {
+            const profile = await tokenInfoRes.json();
+            email = profile.email;
+            name = profile.name || profile.email?.split('@')[0];
+            googleId = profile.sub || profile.user_id;
+          }
         }
       } catch (err) {
         console.warn("[Auth] Google UserInfo API fetch failed:", err.message);
