@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'taskforge-production-jwt-secret-key-2026';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'taskforge-production-refresh-secret-key-2026';
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET)) {
+  throw new Error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET must be set in production!');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production';
 
 const generateTokens = (userId, sessionId) => {
   const accessToken = jwt.sign({ userId, sessionId }, JWT_SECRET, { expiresIn: '15m' });

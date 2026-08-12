@@ -33,19 +33,10 @@ function App() {
 
   useEffect(() => {
     const initAuth = async () => {
-      let token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('accessToken');
       if (!token) {
-        try {
-          // Attempt silent JWT refresh if HttpOnly refreshToken cookie exists
-          const refreshRes = await api.post('/auth/refresh');
-          if (refreshRes.data?.accessToken) {
-            token = refreshRes.data.accessToken;
-            localStorage.setItem('accessToken', token);
-          }
-        } catch (e) {
-          setIsLoading(false);
-          return;
-        }
+        setIsLoading(false);
+        return;
       }
       try {
         const { data } = await api.get('/auth/me');
