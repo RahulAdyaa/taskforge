@@ -19,11 +19,19 @@ export default function GoogleAuthButton() {
     
     const resData = error.response?.data;
     if (resData) {
-      if (typeof resData.error === 'string') return resData.error;
-      if (typeof resData.message === 'string') return resData.message;
-      if (Array.isArray(resData.details) && typeof resData.details[0] === 'string') {
-        return resData.details[0];
+      if (typeof resData === 'object') {
+        if (typeof resData.error === 'string') return resData.error;
+        if (typeof resData.message === 'string') return resData.message;
+        if (Array.isArray(resData.details) && typeof resData.details[0] === 'string') {
+          return resData.details[0];
+        }
+      } else if (typeof resData === 'string' && resData.length < 150) {
+        return resData;
       }
+    }
+
+    if (error.response?.status === 500) {
+      return 'Server Error (500). Please check server environment or logs.';
     }
 
     if (typeof error.error_description === 'string') return error.error_description;
