@@ -11,7 +11,6 @@ import { Pencil, Trash2, Info, Check, X } from 'lucide-react';
 import gsap, { useIsomorphicLayoutEffect, animateModalPopup } from '../lib/gsap';
 import { extractYouTubeUrls } from '../lib/youtube';
 import YouTubeEmbedCard from './YouTubeEmbedCard';
-import FileAttachmentsSection from './FileAttachmentsSection';
 
 const toLocalISOString = (date) => {
   if (!date) return '';
