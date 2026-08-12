@@ -50,8 +50,12 @@ app.use(cors({
     }
 
     // Allow any *.vercel.app domain (Vercel previews and production deployments)
-    if (/\.vercel\.app$/.test(new URL(origin).hostname)) {
-      return callback(null, true);
+    try {
+      if (/\.vercel\.app$/.test(new URL(origin).hostname)) {
+        return callback(null, true);
+      }
+    } catch (_) {
+      // Malformed origin — fall through
     }
 
     // Allow explicitly configured FRONTEND_URL
@@ -68,10 +72,16 @@ app.use(cors({
 const path = require('path');
 const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Ensure uploads directory exists (skip on Vercel — read-only filesystem)
+const uploadsDir = process.env.VERCEL
+  ? '/tmp/uploads'
+  : path.join(__dirname, '../uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('[Uploads] Could not create uploads directory:', err.message);
 }
 
 const compression = require('compression');
