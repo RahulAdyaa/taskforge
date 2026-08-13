@@ -224,18 +224,23 @@ const gracefulShutdown = async (signal) => {
   try {
     const mongoose = require('mongoose');
     if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
+      await mongoose.connection.close(false); // false means don't force close, wait for queries
       console.log('✅ MongoDB connection closed.');
     }
   } catch (err) {
     console.error('❌ Error closing MongoDB connection:', err);
   }
-  process.exit(0);
+  
+  if (signal === 'SIGUSR2') {
+    process.kill(process.pid, 'SIGUSR2');
+  } else {
+    process.exit(0);
+  }
 };
 
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon restarts
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.once('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon restarts
 
 // Export for Vercel serverless
 module.exports = app;
