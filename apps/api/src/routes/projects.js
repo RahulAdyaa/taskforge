@@ -12,10 +12,10 @@ router.use(authenticate);
 
 // OpenRouter AI models (100% free models, prioritized for speed and stability)
 const OPENROUTER_MODELS = [
-  'openrouter/free',
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'qwen/qwen-2.5-coder-32b-instruct:free',
-  'google/gemma-2-9b-it:free',
+  'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'poolside/laguna-xs-2.1:free',
+  'openrouter/free'
 ];
 
 const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt, { maxTokens = 1024, timeout = 25000 } = {}) => {
@@ -42,15 +42,14 @@ const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt, { maxT
       }),
       signal: controller.signal,
     });
-    
+    const responseText = await response.text();
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      const err = await response.text();
-      console.error(`OpenRouter API error (${model}, HTTP ${response.status}):`, err);
+      console.error(`OpenRouter API error (${model}, HTTP ${response.status}):`, responseText);
       throw new Error(`Model ${model} failed with HTTP ${response.status}`);
     }
-    return response.json();
+    return JSON.parse(responseText);
   } catch (error) {
     clearTimeout(timeoutId);
     throw error;
