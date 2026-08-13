@@ -218,5 +218,24 @@ if (!process.env.VERCEL) {
   });
 }
 
+// ─── Graceful Shutdown ──────────────────────────────────────────────────
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+  try {
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log('✅ MongoDB connection closed.');
+    }
+  } catch (err) {
+    console.error('❌ Error closing MongoDB connection:', err);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon restarts
+
 // Export for Vercel serverless
 module.exports = app;
