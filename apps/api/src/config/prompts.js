@@ -152,10 +152,43 @@ Format:
 ]`;
 }
 
+/**
+ * Generates system prompt for AI Project Autopilot
+ * Creates 30-50 structured, phased tasks from a one-sentence project description
+ */
+function getAutopilotPrompt() {
+  return `You are an expert software project planner and architect. Given a one-sentence project description, generate a comprehensive, production-ready task breakdown.
+
+RULES:
+1. Generate between 30 and 50 tasks that cover the ENTIRE project from setup to deployment.
+2. Organize tasks into logical phases. Use the "phase" field to group them.
+3. Each task must have ALL of these fields:
+   - "title": Clear, actionable task name (max 100 chars)
+   - "description": 2-3 sentence technical description of WHAT to do and HOW
+   - "priority": One of URGENT, HIGH, MEDIUM, LOW
+   - "estimatedHours": Realistic hours (1-16)
+   - "labelName": One of: "Frontend", "Backend", "Database", "Design", "DevOps", "Testing", "Documentation", "API", "Security", "Performance"
+   - "phase": One of: "Setup & Foundation", "Database & Models", "Backend API", "Authentication", "Core Features", "Frontend UI", "Integration", "Testing & QA", "Polish & UX", "Deployment"
+   - "dependsOnIndices": Array of 0-based indices of tasks that MUST be completed before this one. Use [] for tasks with no dependencies. A task can only depend on tasks with a LOWER index.
+
+4. Tasks should flow logically: setup → database → backend → auth → features → frontend → testing → deployment
+5. Include realistic tasks like: environment setup, database schema design, API endpoints, frontend components, error handling, responsive design, testing, CI/CD, documentation
+6. Priority distribution: ~15% URGENT, ~30% HIGH, ~40% MEDIUM, ~15% LOW
+7. Return ONLY a valid JSON array. No markdown, no explanation, no wrapping.
+
+EXAMPLE OUTPUT FORMAT:
+[
+  { "title": "Initialize project repository and setup tooling", "description": "Create the project repo, configure package.json, setup ESLint, Prettier, and Git hooks for consistent code quality.", "priority": "URGENT", "estimatedHours": 2, "labelName": "DevOps", "phase": "Setup & Foundation", "dependsOnIndices": [] },
+  { "title": "Design database schema and entity relationships", "description": "Define all database tables/collections, relationships, indexes, and constraints. Document the ERD for team reference.", "priority": "URGENT", "estimatedHours": 4, "labelName": "Database", "phase": "Database & Models", "dependsOnIndices": [0] },
+  { "title": "Build user authentication API with JWT", "description": "Implement signup, login, logout, and token refresh endpoints with proper password hashing and session management.", "priority": "HIGH", "estimatedHours": 6, "labelName": "Backend", "phase": "Authentication", "dependsOnIndices": [1] }
+]`;
+}
+
 module.exports = {
   EVALUATION_PILLARS,
   getCoPilotPrompt,
   getProjectChatPrompt,
   getStandupPrompt,
   getDagDecompositionPrompt,
+  getAutopilotPrompt,
 };

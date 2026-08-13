@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, LayoutGrid, LogOut, ArrowRightToLine, Settings as SettingsIcon, CheckCircle2, Sparkles, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -9,6 +9,7 @@ import NotificationBell from '../components/NotificationBell';
 import StandupModal from '../components/StandupModal';
 import ThemeToggle from '../components/ThemeToggle';
 import MobileHeader from '../components/MobileHeader';
+import AutopilotModal from '../components/AutopilotModal';
 
 export default function Dashboard() {
   const user = useAuthStore(state => state.user);
@@ -19,6 +20,8 @@ export default function Dashboard() {
   const [showStandup, setShowStandup] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [joinProjectId, setJoinProjectId] = useState('');
+  const [autopilotProjectId, setAutopilotProjectId] = useState(null);
+  const navigate = useNavigate();
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -160,28 +163,36 @@ export default function Dashboard() {
         </div>
 
         {isCreating && (
-          <div className="mb-8 bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm flex items-center gap-4">
-            <input 
-              type="text" 
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              placeholder="Enter Project Designation..."
-              className="flex-1 bg-off-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red"
-              autoFocus
-            />
-            <button 
-              onClick={() => createMutation.mutate(newProjectName)}
-              disabled={!newProjectName.trim() || createMutation.isPending}
-              className="bg-signal-red text-white px-6 py-3 rounded-xl font-medium disabled:opacity-50"
-            >
-              Initialize
-            </button>
-            <button 
-              onClick={() => setIsCreating(false)}
-              className="text-black/60 px-4 py-3 font-medium hover:text-black"
-            >
-              Cancel
-            </button>
+          <div className="mb-8 bg-white p-6 rounded-2xl border border-[#E8E4DD] shadow-sm">
+            <div className="flex items-center gap-4">
+              <input 
+                type="text" 
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Enter Project Designation..."
+                className="flex-1 bg-off-white border border-[#E8E4DD] px-4 py-3 rounded-xl font-sans focus:outline-none focus:border-signal-red"
+                autoFocus
+              />
+              <button 
+                onClick={() => createMutation.mutate(newProjectName)}
+                disabled={!newProjectName.trim() || createMutation.isPending}
+                className="bg-signal-red text-white px-6 py-3 rounded-xl font-medium disabled:opacity-50"
+              >
+                Initialize
+              </button>
+              <button 
+                onClick={() => setIsCreating(false)}
+                className="text-black/60 px-4 py-3 font-medium hover:text-black"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="mt-3 pt-3 border-t border-[#F5F3EE] flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+              <span className="text-xs text-black/40 font-mono">Tip: After creating, use</span>
+              <span className="text-xs text-purple-600 font-mono font-bold">AI Autopilot</span>
+              <span className="text-xs text-black/40 font-mono">inside the project to auto-generate 30-50 tasks</span>
+            </div>
           </div>
         )}
 

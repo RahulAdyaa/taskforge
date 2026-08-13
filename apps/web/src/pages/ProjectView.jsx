@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy, GitMerge } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Plus, ArrowLeft, Link as LinkIcon, Copy, GitMerge, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import KanbanBoard from '../components/KanbanBoard';
@@ -16,6 +16,7 @@ import VoiceAgentController from '../components/VoiceAgentController';
 import { useSocket } from '../context/SocketContext';
 import gsap, { useIsomorphicLayoutEffect } from '../lib/gsap';
 import AskProjectAIDrawer from '../components/AskProjectAIDrawer';
+import AutopilotModal from '../components/AutopilotModal';
 
 const WS_URL = import.meta.env.VITE_WS_URL || (!import.meta.env.PROD ? 'http://localhost:3001' : '');
 
@@ -27,6 +28,7 @@ export default function ProjectView() {
   const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'dashboard'
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showAutopilot, setShowAutopilot] = useState(false);
   const [showStandup, setShowStandup] = useState(false);
   const [filters, setFilters] = useState({ search: '', assignee: '', priority: '', label: '', dueDate: '' });
   const mainContentRef = useRef(null);
@@ -316,6 +318,14 @@ export default function ProjectView() {
           {/* Primary Actions: AI Engine & New Task */}
           {isAdmin && (
             <div className="flex items-center gap-1.5 shrink-0">
+              <button 
+                onClick={() => setShowAutopilot(true)}
+                className="btn-brutal bg-gradient-to-r from-signal-red to-purple-600 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 shadow-md"
+                title="AI Autopilot — Generate tasks from a description"
+              >
+                <Sparkles className="w-3.5 h-3.5 relative z-10" />
+                <span className="hidden sm:inline relative z-10">Autopilot</span>
+              </button>
               <button 
                 onClick={() => setShowAIModal(true)}
                 className="btn-brutal bg-[#111111] dark:bg-white/10 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1 hover:bg-[#E63B2E] transition-colors"
@@ -689,6 +699,17 @@ export default function ProjectView() {
           members={project?.members || []}
           labels={labels || []}
           onClose={() => setShowAIModal(false)}
+        />
+      )}
+
+      {showAutopilot && (
+        <AutopilotModal
+          projectId={id}
+          onClose={() => setShowAutopilot(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+            queryClient.invalidateQueries({ queryKey: ['labels', id] });
+          }}
         />
       )}
 

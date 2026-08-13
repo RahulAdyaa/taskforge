@@ -18,9 +18,9 @@ const OPENROUTER_MODELS = [
   'google/gemma-2-9b-it:free',
 ];
 
-const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
+const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt, { maxTokens = 1024, timeout = 25000 } = {}) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for models
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -38,7 +38,7 @@ const callOpenRouterAPI = async (apiKey, model, systemPrompt, userPrompt) => {
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
       }),
       signal: controller.signal,
     });
@@ -159,6 +159,176 @@ router.post('/join-invite/:token', async (req, res, next) => {
     const membership = await ProjectMember.create({ userId: req.user.id, projectId: project.id, role: 'MEMBER' });
     res.status(201).json({ project, membership });
   } catch (error) { next(error); }
+});
+
+// ─── AI PROJECT AUTOPILOT ──────────────────────────────────────────
+// POST /projects/:id/autopilot — Generate full project task board from one sentence
+const { getAutopilotPrompt } = require('../config/prompts');
+
+const autopilotSchema = z.object({
+  prompt: z.string().min(5, 'Project description must be at least 5 characters').max(1000),
+});
+
+router.post('/:id/autopilot', requireProjectRole(['ADMIN']), validate(autopilotSchema), async (req, res, next) => {
+  try {
+    const { prompt } = req.body;
+    const projectId = req.params.id;
+    const apiKey = process.env.OPENROUTER_API_KEY;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'OPENROUTER_API_KEY is not configured. Add it to your environment variables.' });
+    }
+
+    // Verify project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Call AI with autopilot prompt — try models with fallback
+    const systemPrompt = getAutopilotPrompt();
+    let aiTasks = null;
+    let lastError = null;
+
+    for (const model of OPENROUTER_MODELS) {
+      try {
+        console.log(`[Autopilot] Trying model: ${model}`);
+        const data = await callOpenRouterAPI(apiKey, model, systemPrompt, `Project description: "${prompt}"`, { maxTokens: 8192, timeout: 55000 });
+        const text = data.choices?.[0]?.message?.content || '';
+
+        // Extract JSON array from response
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) {
+          lastError = new Error('AI response did not contain a valid JSON array');
+          continue;
+        }
+
+        aiTasks = JSON.parse(jsonMatch[0]);
+        console.log(`[Autopilot] Success with model: ${model} — ${aiTasks.length} tasks generated`);
+        break;
+      } catch (err) {
+        console.error(`[Autopilot] Model ${model} failed:`, err.message);
+        lastError = err;
+      }
+    }
+
+    if (!aiTasks || !Array.isArray(aiTasks) || aiTasks.length === 0) {
+      return res.status(502).json({
+        error: 'AI generation failed. Please try again.',
+        detail: lastError?.message || 'No tasks were generated',
+      });
+    }
+
+    // Validate and sanitize AI output
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const validLabels = ['Frontend', 'Backend', 'Database', 'Design', 'DevOps', 'Testing', 'Documentation', 'API', 'Security', 'Performance'];
+
+    const sanitizedTasks = aiTasks
+      .filter(t => t && typeof t.title === 'string' && t.title.trim().length > 0)
+      .slice(0, 50)
+      .map((t, idx) => ({
+        title: t.title.substring(0, 120).trim(),
+        description: typeof t.description === 'string' ? t.description.substring(0, 500) : null,
+        priority: validPriorities.includes(t.priority) ? t.priority : 'MEDIUM',
+        estimatedHours: typeof t.estimatedHours === 'number' && t.estimatedHours > 0 && t.estimatedHours <= 16 ? t.estimatedHours : 2,
+        labelName: validLabels.includes(t.labelName) ? t.labelName : null,
+        phase: typeof t.phase === 'string' ? t.phase.substring(0, 50) : null,
+        dependsOnIndices: Array.isArray(t.dependsOnIndices)
+          ? t.dependsOnIndices.filter(i => typeof i === 'number' && i >= 0 && i < idx)
+          : [],
+      }));
+
+    if (sanitizedTasks.length === 0) {
+      return res.status(502).json({ error: 'AI generated tasks could not be validated. Please try again.' });
+    }
+
+    // Define label colors
+    const labelColors = {
+      Frontend: '#3B82F6', Backend: '#10B981', Database: '#8B5CF6',
+      Design: '#F59E0B', DevOps: '#EF4444', Testing: '#06B6D4',
+      Documentation: '#6366F1', API: '#EC4899', Security: '#F97316',
+      Performance: '#14B8A6',
+    };
+
+    // Create labels for this project (upsert — skip if already exists)
+    const uniqueLabelNames = [...new Set(sanitizedTasks.map(t => t.labelName).filter(Boolean))];
+    const labelMap = {};
+
+    for (const labelName of uniqueLabelNames) {
+      try {
+        let label = await Label.findOne({ name: labelName, projectId });
+        if (!label) {
+          label = await Label.create({
+            name: labelName,
+            color: labelColors[labelName] || '#71717A',
+            projectId,
+          });
+        }
+        labelMap[labelName] = label._id;
+      } catch (err) {
+        // Skip duplicate label errors gracefully
+        const existing = await Label.findOne({ name: labelName, projectId });
+        if (existing) labelMap[labelName] = existing._id;
+      }
+    }
+
+    // Bulk-create tasks with proper references
+    const createdTaskIds = [];
+
+    for (let i = 0; i < sanitizedTasks.length; i++) {
+      const t = sanitizedTasks[i];
+
+      // Build description with phase info
+      const fullDescription = t.phase
+        ? `**Phase: ${t.phase}**\n\n${t.description || ''}`
+        : (t.description || '');
+
+      // Resolve blockedBy from dependsOnIndices → actual Task IDs
+      const blockedBy = t.dependsOnIndices
+        .map(idx => createdTaskIds[idx])
+        .filter(Boolean);
+
+      // Resolve label
+      const labels = t.labelName && labelMap[t.labelName] ? [labelMap[t.labelName]] : [];
+
+      const task = await Task.create({
+        title: t.title,
+        description: fullDescription,
+        priority: t.priority,
+        estimatedHours: t.estimatedHours,
+        status: 'TODO',
+        projectId,
+        creatorId: req.user.id,
+        labels,
+        blockedBy,
+      });
+
+      createdTaskIds.push(task._id);
+    }
+
+    // Log audit entry
+    try {
+      await AuditLog.create({
+        action: 'AI_AUTOPILOT',
+        performedBy: req.user.id,
+        projectId,
+        entityType: 'PROJECT',
+        entityId: projectId,
+        details: `AI Autopilot generated ${createdTaskIds.length} tasks from prompt: "${prompt.substring(0, 100)}"`,
+      });
+    } catch (err) {
+      console.warn('[Autopilot] Audit log failed:', err.message);
+    }
+
+    res.status(201).json({
+      message: `Successfully generated ${createdTaskIds.length} tasks`,
+      tasksCreated: createdTaskIds.length,
+      labelsCreated: uniqueLabelNames.length,
+      phases: [...new Set(sanitizedTasks.map(t => t.phase).filter(Boolean))],
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // GET single project with members
