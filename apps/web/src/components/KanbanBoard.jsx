@@ -301,7 +301,7 @@ function TaskCardUI({ task, projectId, onClick, isOverlay }) {
             </span>
           )}
         </div>
-        <span className="font-mono text-[10px] text-black/40 uppercase whitespace-nowrap ml-2">ID: {task.id.slice(0,6)}</span>
+        <span className="font-mono text-[10px] text-black/40 uppercase whitespace-nowrap ml-2">ID: {task.id.slice(-6)}</span>
       </div>
       
       <h4 className="font-sans font-bold text-lg mb-2 leading-tight">{task.title}</h4>
