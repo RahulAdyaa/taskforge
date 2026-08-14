@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/axios';
@@ -7,10 +7,11 @@ import { useAuthStore } from '../store/authStore';
 import { TaskTimeTracker } from './TimeTracker';
 import ActivityTimeline from './ActivityTimeline';
 import { useSocket } from '../context/SocketContext';
-import { Pencil, Trash2, Info, Check, X } from 'lucide-react';
-import gsap, { useIsomorphicLayoutEffect, animateModalPopup } from '../lib/gsap';
+import { Pencil, Trash2, Info } from 'lucide-react';
+import { useIsomorphicLayoutEffect, animateModalPopup } from '../lib/gsap';
 import { extractYouTubeUrls } from '../lib/youtube';
 import YouTubeEmbedCard from './YouTubeEmbedCard';
+import FileAttachmentsSection from './FileAttachmentsSection';
 
 const toLocalISOString = (date) => {
   if (!date) return '';
